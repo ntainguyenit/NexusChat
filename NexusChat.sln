@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35707.178 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexusChat.Domain", "NexusChat.Domain\NexusChat.Domain.csproj", "{528E3588-3D3C-4A6E-A98E-94AF538F5C57}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexusChat.Application", "NexusChat.Application\NexusChat.Application.csproj", "{184CCD32-BDD9-4EC7-83EE-49C631499FD8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexusChat.Infrastructure", "NexusChat.Infrastructure\NexusChat.Infrastructure.csproj", "{D8A39AED-870B-4E35-9E05-DAD14B4B930A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexusChat.API", "NexusChat.API\NexusChat.API.csproj", "{2DD31D02-ABE7-41FB-BDFC-3388A57ACBE5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexusChat.UnitTests", "NexusChat.UnitTests\NexusChat.UnitTests.csproj", "{718605F5-AF73-4244-8CF7-57DCB192D21A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexusChat.IntegrationTests", "NexusChat.IntegrationTests\NexusChat.IntegrationTests.csproj", "{3EB4382D-8524-4DB9-B59B-94845660B6F3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{95A8ED8D-D3F4-457C-967C-DEE0CFE8A86A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{892BCE9F-79EC-449A-B2F9-F591BD1DC3E9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{528E3588-3D3C-4A6E-A98E-94AF538F5C57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{528E3588-3D3C-4A6E-A98E-94AF538F5C57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{528E3588-3D3C-4A6E-A98E-94AF538F5C57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{528E3588-3D3C-4A6E-A98E-94AF538F5C57}.Release|Any CPU.Build.0 = Release|Any CPU
+		{184CCD32-BDD9-4EC7-83EE-49C631499FD8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{184CCD32-BDD9-4EC7-83EE-49C631499FD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{184CCD32-BDD9-4EC7-83EE-49C631499FD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{184CCD32-BDD9-4EC7-83EE-49C631499FD8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8A39AED-870B-4E35-9E05-DAD14B4B930A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8A39AED-870B-4E35-9E05-DAD14B4B930A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8A39AED-870B-4E35-9E05-DAD14B4B930A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8A39AED-870B-4E35-9E05-DAD14B4B930A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DD31D02-ABE7-41FB-BDFC-3388A57ACBE5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DD31D02-ABE7-41FB-BDFC-3388A57ACBE5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DD31D02-ABE7-41FB-BDFC-3388A57ACBE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DD31D02-ABE7-41FB-BDFC-3388A57ACBE5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{718605F5-AF73-4244-8CF7-57DCB192D21A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{718605F5-AF73-4244-8CF7-57DCB192D21A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{718605F5-AF73-4244-8CF7-57DCB192D21A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{718605F5-AF73-4244-8CF7-57DCB192D21A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3EB4382D-8524-4DB9-B59B-94845660B6F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3EB4382D-8524-4DB9-B59B-94845660B6F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3EB4382D-8524-4DB9-B59B-94845660B6F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3EB4382D-8524-4DB9-B59B-94845660B6F3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{528E3588-3D3C-4A6E-A98E-94AF538F5C57} = {95A8ED8D-D3F4-457C-967C-DEE0CFE8A86A}
+		{184CCD32-BDD9-4EC7-83EE-49C631499FD8} = {95A8ED8D-D3F4-457C-967C-DEE0CFE8A86A}
+		{D8A39AED-870B-4E35-9E05-DAD14B4B930A} = {95A8ED8D-D3F4-457C-967C-DEE0CFE8A86A}
+		{2DD31D02-ABE7-41FB-BDFC-3388A57ACBE5} = {95A8ED8D-D3F4-457C-967C-DEE0CFE8A86A}
+		{718605F5-AF73-4244-8CF7-57DCB192D21A} = {892BCE9F-79EC-449A-B2F9-F591BD1DC3E9}
+		{3EB4382D-8524-4DB9-B59B-94845660B6F3} = {892BCE9F-79EC-449A-B2F9-F591BD1DC3E9}
+	EndGlobalSection
+EndGlobal
