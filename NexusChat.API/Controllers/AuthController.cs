@@ -15,15 +15,18 @@ public class AuthController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ITokenService _tokenService;
     private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly IUserConnectionManager _connectionManager;
 
     public AuthController(
         ApplicationDbContext context, 
         ITokenService tokenService, 
-        IPasswordHasher<User> passwordHasher)
+        IPasswordHasher<User> passwordHasher,
+        IUserConnectionManager connectionManager)
     {
         _context = context;
         _tokenService = tokenService;
         _passwordHasher = passwordHasher;
+        _connectionManager = connectionManager;
     }
 
     [HttpPost("register")]
@@ -85,5 +88,24 @@ public class AuthController : ControllerBase
                 Email = user.Email
             }
         });
+    }
+
+    [HttpGet("users")]
+    public async Task<ActionResult<IEnumerable<UserDto>>> GetUsers()
+    {
+        var users = await _context.Users
+            .Select(u => new UserDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                Email = u.Email
+            }).ToListAsync();
+            
+        foreach(var u in users)
+        {
+            u.IsOnline = _connectionManager.IsUserOnline(u.Id.ToString());
+        }
+            
+        return Ok(users);
     }
 }

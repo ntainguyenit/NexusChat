@@ -94,4 +94,19 @@ public class ChatService : IChatService
         
         return conversation;
     }
+
+    public async Task<Conversation> CreateGroupConversationAsync(string name, List<Guid> participantIds)
+    {
+        var conversation = new Conversation
+        {
+            IsGroup = true,
+            GroupName = name,
+            Participants = participantIds.Select(id => new ConversationParticipant { UserId = id }).ToList()
+        };
+        
+        await _unitOfWork.Conversations.AddAsync(conversation);
+        await _unitOfWork.SaveChangesAsync();
+        
+        return conversation;
+    }
 }

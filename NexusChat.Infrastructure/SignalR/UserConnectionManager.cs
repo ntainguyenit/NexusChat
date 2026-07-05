@@ -55,4 +55,9 @@ public class UserConnectionManager : IUserConnectionManager
         }
         return new List<string>();
     }
+
+    public bool IsUserOnline(string userId)
+    {
+        return _userConnections.ContainsKey(userId);
+    }
 }

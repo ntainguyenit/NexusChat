@@ -23,4 +23,41 @@ public class ChatController : ControllerBase
         var messages = await _chatService.GetMessagesAsync(conversationId, skip, take);
         return Ok(messages);
     }
+    [HttpGet("private/{otherUserId}")]
+    public async Task<ActionResult<ConversationDto>> GetPrivateConversation(Guid otherUserId)
+    {
+        var currentUserIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            return Unauthorized();
+            
+        var conversation = await _chatService.GetOrCreatePrivateConversationAsync(currentUserId, otherUserId);
+        if (conversation == null) return NotFound();
+        
+        return Ok(new ConversationDto 
+        { 
+            Id = conversation.Id, 
+            IsGroup = conversation.IsGroup,
+            Name = conversation.GroupName ?? string.Empty
+        });
+    }
+
+    [HttpPost("group")]
+    public async Task<ActionResult<ConversationDto>> CreateGroup([FromBody] CreateGroupDto dto)
+    {
+        var currentUserIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(currentUserIdStr) || !Guid.TryParse(currentUserIdStr, out var currentUserId))
+            return Unauthorized();
+            
+        dto.ParticipantIds.Add(currentUserId);
+        var distinctIds = dto.ParticipantIds.Distinct().ToList();
+        
+        var conversation = await _chatService.CreateGroupConversationAsync(dto.Name, distinctIds);
+        
+        return Ok(new ConversationDto 
+        { 
+            Id = conversation.Id, 
+            IsGroup = conversation.IsGroup,
+            Name = conversation.GroupName ?? string.Empty
+        });
+    }
 }

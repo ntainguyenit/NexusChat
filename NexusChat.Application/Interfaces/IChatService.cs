@@ -9,4 +9,5 @@ public interface IChatService
     Task<MessageDto> SendMessageAsync(Guid senderId, Guid conversationId, string content);
     Task MarkMessageAsReadAsync(Guid messageId);
     Task<Conversation?> GetOrCreatePrivateConversationAsync(Guid userId1, Guid userId2);
+    Task<Conversation> CreateGroupConversationAsync(string name, List<Guid> participantIds);
 }

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusChat</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Login View -->
+        <div id="login-view" class="view active">
+            <div class="login-card">
+                <div class="brand">
+                    <i class="fa-solid fa-bolt brand-icon"></i>
+                    <h1>NexusChat</h1>
+                </div>
+                <p class="subtitle">Enter your credentials to continue</p>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" value="alice" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" value="Pa$$w0rd" required>
+                    </div>
+                    <button type="submit" class="btn-primary" id="login-btn">Sign In</button>
+                    <p id="login-error" class="error-msg"></p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Chat View -->
+        <div id="chat-view" class="view">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Conversations</h2>
+                    <button class="icon-btn" title="New Conversation"><i class="fa-solid fa-pen-to-square"></i></button>
+                </div>
+                <div class="search-bar">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" placeholder="Search...">
+                </div>
+                <ul class="conversation-list" id="conversation-list">
+                    <!-- Dynamic conversations will be loaded here -->
+                    <li class="conversation-item active">
+                        <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                        <div class="conv-details">
+                            <span class="conv-name">General Room</span>
+                            <span class="conv-last-msg">Welcome to NexusChat</span>
+                        </div>
+                    </li>
+                </ul>
+                <div class="sidebar-footer">
+                    <div class="current-user">
+                        <div class="avatar small"><i class="fa-solid fa-user"></i></div>
+                        <span id="current-username">User</span>
+                    </div>
+                    <button class="icon-btn" id="logout-btn" title="Sign Out"><i class="fa-solid fa-right-from-bracket"></i></button>
+                </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <main class="chat-area">
+                <header class="chat-header">
+                    <div class="chat-title">
+                        <h2 id="active-chat-name">General Room</h2>
+                        <span class="status-indicator online" title="Online"></span>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="icon-btn" title="Search in chat"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <button class="icon-btn" title="Settings"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                    </div>
+                </header>
+
+                <div class="messages-container" id="messages-container">
+                    <!-- Dynamic messages -->
+                    <div class="message system">
+                        <span>Connected to chat server</span>
+                    </div>
+                </div>
+
+                <footer class="chat-footer">
+                    <button class="icon-btn" title="Attach file"><i class="fa-solid fa-paperclip"></i></button>
+                    <div class="input-wrapper">
+                        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                    </div>
+                    <button class="icon-btn send-btn" id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+                </footer>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <h3>Settings</h3>
+            <p><strong>Username:</strong> <span id="setting-username"></span></p>
+            <p><strong>Email:</strong> <span id="setting-email"></span></p>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('settings-modal').classList.remove('active')">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="group-modal" class="modal">
+        <div class="modal-content">
+            <h3>New Group</h3>
+            <div class="form-group">
+                <label>Group Name</label>
+                <input type="text" id="group-name" placeholder="E.g. Project Team">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('group-modal').classList.remove('active')">Cancel</button>
+                <button class="btn-primary small" id="create-group-btn">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SignalR Client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <!-- Custom JS -->
+    <script src="app.js"></script>
+</body>
+</html>

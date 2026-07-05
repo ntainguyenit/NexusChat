@@ -18,3 +18,16 @@ public class SendMessageDto
     public Guid ConversationId { get; set; }
     public string Content { get; set; } = string.Empty;
 }
+
+public class ConversationDto
+{
+    public Guid Id { get; set; }
+    public bool IsGroup { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class CreateGroupDto
+{
+    public string Name { get; set; } = string.Empty;
+    public List<Guid> ParticipantIds { get; set; } = new();
+}
