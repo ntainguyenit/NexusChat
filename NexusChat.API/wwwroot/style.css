@@ -335,10 +335,16 @@ body {
     gap: 1rem;
 }
 
+.messages-container > :first-child {
+    margin-top: auto;
+}
+
 .message {
+    margin-bottom: 15px;
     display: flex;
     flex-direction: column;
-    max-width: 70%;
+    max-width: 75%;
+    transition: opacity 0.3s ease;
 }
 
 .message.sent {
@@ -450,3 +456,76 @@ body {
 .modal-footer { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
 .btn-secondary { background: var(--border); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
 .btn-primary.small { padding: 0.5rem 1rem; width: auto; }
+
+/* Typing & Read Receipts */
+.typing-indicator {
+    position: absolute;
+    bottom: 80px;
+    left: 24px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    background: var(--bg-main);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: none;
+}
+.typing-indicator.active {
+    display: block;
+}
+
+.msg-status {
+    font-size: 10px;
+    margin-left: 4px;
+    transition: color 0.3s ease;
+}
+
+.msg-status.fa-check { color: #888; }
+.msg-status.fa-check-double { color: #3498db; } /* Blue tick for read */
+
+/* Toasts */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+}
+.toast {
+    background: white;
+    border-left: 4px solid var(--primary);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    padding: 15px 20px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 250px;
+    animation: slideIn 0.3s ease forwards;
+}
+.toast-content {
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+.toast-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.toast-actions button {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+}
+.toast.hide {
+    animation: slideOut 0.3s ease forwards;
+}
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}

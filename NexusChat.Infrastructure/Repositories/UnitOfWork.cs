@@ -72,13 +72,56 @@ public class ConversationRepository : IConversationRepository
         return await _context.Conversations
             .Include(c => c.Participants)
             .ThenInclude(p => p.User)
-            .Where(c => c.Participants.Any(p => p.UserId == userId))
+            .Where(c => c.Participants.Any(p => p.UserId == userId && p.Status == NexusChat.Domain.Enums.ParticipantStatus.Approved))
             .ToListAsync();
     }
 
     public async Task AddAsync(Conversation conversation)
     {
         await _context.Conversations.AddAsync(conversation);
+    }
+
+    public async Task<Conversation?> GetByJoinCodeAsync(string joinCode)
+    {
+        return await _context.Conversations
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.IsGroup && c.JoinCode == joinCode);
+    }
+
+    public async Task AddParticipantAsync(ConversationParticipant participant)
+    {
+        await _context.ConversationParticipants.AddAsync(participant);
+    }
+
+    public async Task<bool> HasParticipantAsync(Guid conversationId, Guid userId)
+    {
+        return await _context.ConversationParticipants
+            .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
+    }
+
+    public async Task<ConversationParticipant?> GetParticipantAsync(Guid conversationId, Guid userId)
+    {
+        return await _context.ConversationParticipants
+            .Include(cp => cp.User)
+            .FirstOrDefaultAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
+    }
+
+    public async Task<IEnumerable<ConversationParticipant>> GetPendingParticipantsAsync(Guid conversationId)
+    {
+        return await _context.ConversationParticipants
+            .Include(cp => cp.User)
+            .Where(cp => cp.ConversationId == conversationId && cp.Status == NexusChat.Domain.Enums.ParticipantStatus.Pending)
+            .ToListAsync();
+    }
+
+    public void UpdateParticipant(ConversationParticipant participant)
+    {
+        _context.ConversationParticipants.Update(participant);
+    }
+
+    public void RemoveConversation(Conversation conversation)
+    {
+        _context.Conversations.Remove(conversation);
     }
 }
 

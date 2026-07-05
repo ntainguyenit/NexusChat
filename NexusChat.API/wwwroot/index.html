@@ -42,7 +42,10 @@
             <aside class="sidebar">
                 <div class="sidebar-header">
                     <h2>Conversations</h2>
-                    <button class="icon-btn" title="New Conversation"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <div>
+                        <button class="icon-btn" title="Join Group" onclick="document.getElementById('join-modal').classList.add('active')"><i class="fa-solid fa-users-viewfinder"></i></button>
+                        <button class="icon-btn" title="New Group"><i class="fa-solid fa-pen-to-square"></i></button>
+                    </div>
                 </div>
                 <div class="search-bar">
                     <i class="fa-solid fa-search"></i>
@@ -75,7 +78,12 @@
                         <span class="status-indicator online" title="Online"></span>
                     </div>
                     <div class="chat-actions">
-                        <button class="icon-btn" title="Search in chat"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <div class="message-search-bar" id="message-search-bar" style="display: none; margin-right: 10px;">
+                            <input type="text" id="message-search-input" placeholder="Search in chat..." style="padding: 4px 8px; border-radius: 12px; border: 1px solid #ccc;">
+                        </div>
+                        <button class="icon-btn" title="View Join Code" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i></button>
+                        <button class="icon-btn" title="Search in chat" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <button class="icon-btn" title="Disband Group" id="disband-btn" style="display: none; color: #e74c3c;"><i class="fa-solid fa-trash-can"></i></button>
                         <button class="icon-btn" title="Settings"><i class="fa-solid fa-ellipsis-vertical"></i></button>
                     </div>
                 </header>
@@ -86,10 +94,11 @@
                         <span>Connected to chat server</span>
                     </div>
                 </div>
+                
+                <div id="typing-indicator" class="typing-indicator"></div>
 
                 <footer class="chat-footer">
-                    <button class="icon-btn" title="Attach file"><i class="fa-solid fa-paperclip"></i></button>
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" style="margin-left: 0;">
                         <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                     </div>
                     <button class="icon-btn send-btn" id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
@@ -112,17 +121,40 @@
     
     <div id="group-modal" class="modal">
         <div class="modal-content">
-            <h3>New Group</h3>
-            <div class="form-group">
+            <h3 id="group-modal-title">New Group</h3>
+            <div class="form-group" id="group-name-group">
                 <label>Group Name</label>
                 <input type="text" id="group-name" placeholder="E.g. Project Team">
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('group-modal').classList.remove('active')">Cancel</button>
+            <div id="group-code-display" style="display: none; margin-top: 15px; padding: 15px; background: rgba(52, 152, 219, 0.1); border-radius: 8px; text-align: center; border: 1px dashed var(--primary);">
+                <p style="margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem;">Share this Join Code with others:</p>
+                <h2 id="new-group-code" style="letter-spacing: 4px; color: var(--primary); font-size: 2rem; margin: 0;"></h2>
+                <button class="btn-secondary small" id="copy-code-btn" style="margin-top: 15px; width: 100%;"><i class="fa-solid fa-copy"></i> Copy Code</button>
+                <button class="btn-primary small" onclick="closeGroupModal()" style="margin-top: 10px; width: 100%;">Close / Thoát</button>
+            </div>
+            <div class="modal-footer" id="group-modal-footer">
+                <button class="btn-secondary" onclick="closeGroupModal()">Cancel</button>
                 <button class="btn-primary small" id="create-group-btn">Create</button>
             </div>
         </div>
     </div>
+
+    <div id="join-modal" class="modal">
+        <div class="modal-content">
+            <h3>Join Group</h3>
+            <div class="form-group">
+                <label>Enter Group Code</label>
+                <input type="text" id="join-code" placeholder="E.g. X7A9KQ">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('join-modal').classList.remove('active')">Cancel</button>
+                <button class="btn-primary small" id="join-group-btn">Join</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- SignalR Client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>

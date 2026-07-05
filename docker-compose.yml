@@ -11,12 +11,33 @@ services:
       - "14333:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     container_name: nexuschat_redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexuschat_api
+    ports:
+      - "5215:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NexusChat;User Id=sa;Password=Your_password123;TrustServerCertificate=True
+      - ConnectionStrings__Redis=redis:6379
+    depends_on:
+      - sqlserver
+      - redis
+    restart: unless-stopped
 
 volumes:
   sqlserver_data:
+  redis_data:

@@ -1,9 +1,10 @@
-﻿namespace NexusChat.Domain.Entities;
+namespace NexusChat.Domain.Entities;
 
 public class Conversation : BaseEntity
 {
     public bool IsGroup { get; set; }
     public string? GroupName { get; set; }
+    public string? JoinCode { get; set; }
 
     // Navigation properties
     public ICollection<ConversationParticipant> Participants { get; set; } = new List<ConversationParticipant>();

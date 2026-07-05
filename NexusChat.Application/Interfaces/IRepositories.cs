@@ -16,6 +16,13 @@ public interface IConversationRepository
     Task<Conversation?> GetPrivateConversationAsync(Guid userId1, Guid userId2);
     Task<IEnumerable<Conversation>> GetConversationsByUserIdAsync(Guid userId);
     Task AddAsync(Conversation conversation);
+    Task<Conversation?> GetByJoinCodeAsync(string joinCode);
+    Task AddParticipantAsync(ConversationParticipant participant);
+    Task<bool> HasParticipantAsync(Guid conversationId, Guid userId);
+    Task<ConversationParticipant?> GetParticipantAsync(Guid conversationId, Guid userId);
+    Task<IEnumerable<ConversationParticipant>> GetPendingParticipantsAsync(Guid conversationId);
+    void UpdateParticipant(ConversationParticipant participant);
+    void RemoveConversation(Conversation conversation);
 }
 
 public interface IUnitOfWork

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using NexusChat.Application.Interfaces;
+using NexusChat.Application.DTOs;
 
 namespace NexusChat.API.Hubs;
 
@@ -33,18 +34,18 @@ public class ChatHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task SendMessageToUser(string receiverId, string content)
+    public async Task<MessageDto?> SendMessageToUser(string receiverId, string content)
     {
         var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(senderIdStr) || !Guid.TryParse(senderIdStr, out var senderId))
-            return;
+            return null;
 
         if (!Guid.TryParse(receiverId, out var receiverGuid))
-            return;
+            return null;
 
         // Ensure a private conversation exists between the two users
         var conversation = await _chatService.GetOrCreatePrivateConversationAsync(senderId, receiverGuid);
-        if (conversation == null) return;
+        if (conversation == null) return null;
 
         // Save message to DB
         var messageDto = await _chatService.SendMessageAsync(senderId, conversation.Id, content);
@@ -62,24 +63,40 @@ public class ChatHub : Hub
         {
             await Clients.Clients(senderConnections).SendAsync("ReceiveMessage", messageDto);
         }
+        
+        return messageDto;
     }
 
-    public async Task SendMessageToGroup(Guid conversationId, string content)
+    public async Task<MessageDto?> SendMessageToGroup(Guid conversationId, string content)
     {
         var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(senderIdStr) || !Guid.TryParse(senderIdStr, out var senderId))
-            return;
+            return null;
+
+        var isApproved = await _chatService.IsApprovedParticipantAsync(conversationId, senderId);
+        if (!isApproved)
+            return null;
 
         // Save message to DB
         var messageDto = await _chatService.SendMessageAsync(senderId, conversationId, content);
 
-        // Broadcast to group
-        await Clients.Group(conversationId.ToString()).SendAsync("ReceiveMessage", messageDto);
+        // Broadcast to group (except sender to avoid duplicate if we rely on return value, but here we just return it)
+        await Clients.GroupExcept(conversationId.ToString(), Context.ConnectionId).SendAsync("ReceiveMessage", messageDto);
+        
+        return messageDto;
     }
 
     public async Task JoinGroup(Guid conversationId)
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString());
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return;
+            
+        var isApproved = await _chatService.IsApprovedParticipantAsync(conversationId, userId);
+        if (isApproved)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString());
+        }
     }
 
     public async Task LeaveGroup(Guid conversationId)
@@ -89,8 +106,64 @@ public class ChatHub : Hub
 
     public async Task MarkAsRead(Guid messageId)
     {
-        await _chatService.MarkMessageAsReadAsync(messageId);
-        // Optionally notify sender that message was read
-        // e.g., await Clients.User(senderId).SendAsync("MessageRead", messageId);
+        var msg = await _chatService.MarkMessageAsReadAsync(messageId);
+        if (msg != null)
+        {
+            var senderConnections = _connectionManager.GetUserConnections(msg.SenderId.ToString());
+            if (senderConnections.Any())
+            {
+                await Clients.Clients(senderConnections).SendAsync("MessageRead", messageId);
+            }
+        }
+    }
+
+    public async Task Typing(string receiverId, bool isGroup)
+    {
+        var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(senderIdStr)) return;
+
+        if (isGroup)
+        {
+            if (Guid.TryParse(receiverId, out var convId))
+            {
+                if (await _chatService.IsApprovedParticipantAsync(convId, Guid.Parse(senderIdStr)))
+                {
+                    await Clients.GroupExcept(receiverId, Context.ConnectionId).SendAsync("UserTyping", senderIdStr, true);
+                }
+            }
+        }
+        else
+        {
+            var receiverConnections = _connectionManager.GetUserConnections(receiverId);
+            if (receiverConnections.Any())
+            {
+                await Clients.Clients(receiverConnections).SendAsync("UserTyping", senderIdStr, false);
+            }
+        }
+    }
+
+    public async Task StoppedTyping(string receiverId, bool isGroup)
+    {
+        var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(senderIdStr)) return;
+
+        if (isGroup)
+        {
+            if (Guid.TryParse(receiverId, out var convId))
+            {
+                if (await _chatService.IsApprovedParticipantAsync(convId, Guid.Parse(senderIdStr)))
+                {
+                    await Clients.GroupExcept(receiverId, Context.ConnectionId).SendAsync("UserStoppedTyping", senderIdStr, true);
+                }
+            }
+        }
+        else
+        {
+            var receiverConnections = _connectionManager.GetUserConnections(receiverId);
+            if (receiverConnections.Any())
+            {
+                await Clients.Clients(receiverConnections).SendAsync("UserStoppedTyping", senderIdStr, false);
+            }
+        }
     }
 }
