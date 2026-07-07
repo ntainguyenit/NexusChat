@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -107,5 +108,56 @@ public class AuthController : ControllerBase
         }
             
         return Ok(users);
+    }
+
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<UserDto>> UpdateProfile([FromBody] UpdateProfileDto dto)
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return Unauthorized();
+
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return NotFound();
+
+        // Check uniqueness
+        if (dto.UserName != user.UserName && await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
+            return BadRequest("Username is already taken");
+        
+        if (dto.Email != user.Email && await _context.Users.AnyAsync(u => u.Email == dto.Email))
+            return BadRequest("Email is already registered");
+
+        user.UserName = dto.UserName;
+        user.Email = dto.Email;
+        await _context.SaveChangesAsync();
+
+        return Ok(new UserDto
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            Email = user.Email
+        });
+    }
+
+    [Authorize]
+    [HttpPut("password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return Unauthorized();
+
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return NotFound();
+
+        var verification = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.CurrentPassword);
+        if (verification == PasswordVerificationResult.Failed)
+            return BadRequest("Mật khẩu hiện tại không đúng");
+
+        user.PasswordHash = _passwordHasher.HashPassword(user, dto.NewPassword);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Đổi mật khẩu thành công" });
     }
 }

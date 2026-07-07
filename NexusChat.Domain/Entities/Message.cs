@@ -1,4 +1,4 @@
-﻿using NexusChat.Domain.Enums;
+using NexusChat.Domain.Enums;
 
 namespace NexusChat.Domain.Entities;
 
@@ -13,4 +13,7 @@ public class Message : BaseEntity
     public string Content { get; set; } = string.Empty;
     public DateTime SentAt { get; set; } = DateTime.UtcNow;
     public MessageStatus Status { get; set; } = MessageStatus.Sent;
+    public bool IsEdited { get; set; } = false;
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? EditedAt { get; set; }
 }

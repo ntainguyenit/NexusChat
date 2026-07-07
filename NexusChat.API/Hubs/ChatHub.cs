@@ -117,6 +117,57 @@ public class ChatHub : Hub
         }
     }
 
+    // --- Edit & Delete Messages ---
+
+    public async Task<MessageDto?> EditMessage(Guid messageId, string newContent)
+    {
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return null;
+
+        var result = await _chatService.EditMessageAsync(messageId, userId, newContent);
+        if (result == null) return null;
+
+        // Broadcast edit to conversation participants
+        await Clients.GroupExcept(result.ConversationId.ToString(), Context.ConnectionId)
+            .SendAsync("MessageEdited", result);
+
+        // Also broadcast to private chat partner if not a group
+        var senderConnections = _connectionManager.GetUserConnections(userIdStr)
+            .Where(c => c != Context.ConnectionId).ToList();
+        if (senderConnections.Any())
+        {
+            await Clients.Clients(senderConnections).SendAsync("MessageEdited", result);
+        }
+
+        return result;
+    }
+
+    public async Task<MessageDto?> DeleteMessage(Guid messageId)
+    {
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return null;
+
+        var result = await _chatService.DeleteMessageAsync(messageId, userId);
+        if (result == null) return null;
+
+        // Broadcast delete to conversation participants
+        await Clients.GroupExcept(result.ConversationId.ToString(), Context.ConnectionId)
+            .SendAsync("MessageDeleted", result);
+
+        var senderConnections = _connectionManager.GetUserConnections(userIdStr)
+            .Where(c => c != Context.ConnectionId).ToList();
+        if (senderConnections.Any())
+        {
+            await Clients.Clients(senderConnections).SendAsync("MessageDeleted", result);
+        }
+
+        return result;
+    }
+
+    // --- Typing Indicators ---
+
     public async Task Typing(string receiverId, bool isGroup)
     {
         var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;

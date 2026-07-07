@@ -79,10 +79,14 @@
                     </div>
                     <div class="chat-actions">
                         <div class="message-search-bar" id="message-search-bar" style="display: none; margin-right: 10px;">
-                            <input type="text" id="message-search-input" placeholder="Search in chat..." style="padding: 4px 8px; border-radius: 12px; border: 1px solid #ccc;">
+                            <input type="text" id="message-search-input" placeholder="Tìm kiếm..." style="padding: 4px 8px; border-radius: 12px; border: 1px solid #ccc;">
                         </div>
                         <button class="icon-btn" title="View Join Code" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i></button>
+                        <button class="icon-btn" title="Members" id="members-btn" style="display: none;"><i class="fa-solid fa-users"></i></button>
+                        <button class="icon-btn" title="Pending Requests" id="pending-requests-btn" style="display: none; position: relative;"><i class="fa-solid fa-bell"></i><span id="pending-badge" class="pending-badge" style="display: none;">0</span></button>
+                        <button class="icon-btn" title="Rename Group" id="rename-group-btn" style="display: none;"><i class="fa-solid fa-pen"></i></button>
                         <button class="icon-btn" title="Search in chat" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <button class="icon-btn" title="Leave Group" id="leave-group-btn" style="display: none; color: #e67e22;"><i class="fa-solid fa-right-from-bracket"></i></button>
                         <button class="icon-btn" title="Disband Group" id="disband-btn" style="display: none; color: #e74c3c;"><i class="fa-solid fa-trash-can"></i></button>
                         <button class="icon-btn" title="Settings"><i class="fa-solid fa-ellipsis-vertical"></i></button>
                     </div>
@@ -97,11 +101,13 @@
                 
                 <div id="typing-indicator" class="typing-indicator"></div>
 
+                <div id="edit-indicator" class="edit-indicator" style="display: none;"></div>
+
                 <footer class="chat-footer">
                     <div class="input-wrapper" style="margin-left: 0;">
-                        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                        <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off">
                     </div>
-                    <button class="icon-btn send-btn" id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+                    <button class="icon-btn send-btn" id="send-btn" title="Gửi tin nhắn"><i class="fa-solid fa-paper-plane"></i></button>
                 </footer>
             </main>
         </div>
@@ -109,12 +115,46 @@
 
     <!-- Modals -->
     <div id="settings-modal" class="modal">
-        <div class="modal-content">
-            <h3>Settings</h3>
-            <p><strong>Username:</strong> <span id="setting-username"></span></p>
-            <p><strong>Email:</strong> <span id="setting-email"></span></p>
+        <div class="modal-content" style="max-width: 480px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin-bottom: 0;"><i class="fa-solid fa-gear" style="color: var(--primary); margin-right: 8px;"></i>Cài đặt</h3>
+                <button class="icon-btn" onclick="document.getElementById('settings-modal').classList.remove('active')" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="settings-section">
+                <h4><i class="fa-solid fa-user"></i> Hồ sơ</h4>
+                <div class="form-group">
+                    <label for="setting-username">Tên người dùng</label>
+                    <input type="text" id="setting-username" placeholder="Username">
+                </div>
+                <div class="form-group">
+                    <label for="setting-email">Email</label>
+                    <input type="email" id="setting-email" placeholder="Email">
+                </div>
+                <button class="btn-primary small" id="save-profile-btn"><i class="fa-solid fa-floppy-disk"></i> Lưu hồ sơ</button>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid var(--border); margin: 1.2rem 0;">
+            
+            <div class="settings-section">
+                <h4><i class="fa-solid fa-lock"></i> Đổi mật khẩu</h4>
+                <div class="form-group">
+                    <label for="current-password">Mật khẩu hiện tại</label>
+                    <input type="password" id="current-password" placeholder="Mật khẩu hiện tại">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">Mật khẩu mới</label>
+                    <input type="password" id="new-password" placeholder="Mật khẩu mới">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Xác nhận mật khẩu mới</label>
+                    <input type="password" id="confirm-password" placeholder="Xác nhận mật khẩu">
+                </div>
+                <button class="btn-primary small" id="save-password-btn"><i class="fa-solid fa-key"></i> Đổi mật khẩu</button>
+            </div>
+            
             <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('settings-modal').classList.remove('active')">Close</button>
+                <button class="btn-secondary" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
             </div>
         </div>
     </div>
@@ -149,6 +189,49 @@
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="document.getElementById('join-modal').classList.remove('active')">Cancel</button>
                 <button class="btn-primary small" id="join-group-btn">Join</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pending-requests-modal" class="modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin-bottom: 0;"><i class="fa-solid fa-user-clock" style="color: var(--primary); margin-right: 8px;"></i>Yêu cầu tham gia</h3>
+                <button class="icon-btn" onclick="document.getElementById('pending-requests-modal').classList.remove('active')" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="pending-requests-list" class="pending-requests-list">
+                <!-- Dynamic pending requests -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('pending-requests-modal').classList.remove('active')">Đóng</button>
+            </div>
+        </div>
+    </div>
+    <!-- Members Modal -->
+    <div id="members-modal" class="modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin-bottom: 0;"><i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i>Thành viên</h3>
+                <button class="icon-btn" onclick="document.getElementById('members-modal').classList.remove('active')" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="members-list" class="pending-requests-list"></div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('members-modal').classList.remove('active')">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Group Modal -->
+    <div id="rename-group-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3><i class="fa-solid fa-pen" style="color: var(--primary); margin-right: 8px;"></i>Đổi tên nhóm</h3>
+            <div class="form-group">
+                <label>Tên nhóm mới</label>
+                <input type="text" id="rename-group-input" placeholder="Nhập tên mới...">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('rename-group-modal').classList.remove('active')">Hủy</button>
+                <button class="btn-primary small" id="rename-group-save">Lưu</button>
             </div>
         </div>
     </div>

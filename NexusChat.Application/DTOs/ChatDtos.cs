@@ -12,6 +12,9 @@ public class MessageDto
     public string Content { get; set; } = string.Empty;
     public DateTime SentAt { get; set; }
     public MessageStatus Status { get; set; }
+    public bool IsEdited { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? EditedAt { get; set; }
 }
 
 public class JoinRequestDto
@@ -36,4 +39,30 @@ public class ConversationDto
     public string? JoinCode { get; set; }
     public bool IsAdmin { get; set; }
     public bool IsPending { get; set; }
+}
+
+public class MemberDto
+{
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public bool IsAdmin { get; set; }
+    public bool IsOnline { get; set; }
+    public DateTime JoinedAt { get; set; }
+}
+
+public class UpdateGroupDto
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public class UpdateProfileDto
+{
+    public string UserName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ChangePasswordDto
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }

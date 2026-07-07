@@ -14,20 +14,24 @@ public class ChatService : IChatService
         _unitOfWork = unitOfWork;
     }
 
+    private MessageDto ToMessageDto(Message m) => new MessageDto
+    {
+        Id = m.Id,
+        ConversationId = m.ConversationId,
+        SenderId = m.SenderId,
+        SenderName = m.Sender?.UserName ?? string.Empty,
+        Content = m.IsDeleted ? "" : m.Content,
+        SentAt = DateTime.SpecifyKind(m.SentAt, DateTimeKind.Utc),
+        Status = m.Status,
+        IsEdited = m.IsEdited,
+        IsDeleted = m.IsDeleted,
+        EditedAt = m.EditedAt.HasValue ? DateTime.SpecifyKind(m.EditedAt.Value, DateTimeKind.Utc) : null
+    };
+
     public async Task<IEnumerable<MessageDto>> GetMessagesAsync(Guid conversationId, int skip, int take)
     {
         var messages = await _unitOfWork.Messages.GetMessagesByConversationAsync(conversationId, skip, take);
-        
-        return messages.Select(m => new MessageDto
-        {
-            Id = m.Id,
-            ConversationId = m.ConversationId,
-            SenderId = m.SenderId,
-            SenderName = m.Sender.UserName,
-            Content = m.Content,
-            SentAt = DateTime.SpecifyKind(m.SentAt, DateTimeKind.Utc),
-            Status = m.Status
-        });
+        return messages.Select(ToMessageDto);
     }
 
     public async Task<MessageDto> SendMessageAsync(Guid senderId, Guid conversationId, string content)
@@ -83,6 +87,42 @@ public class ChatService : IChatService
             };
         }
         return null;
+    }
+
+    public async Task<MessageDto?> EditMessageAsync(Guid messageId, Guid userId, string newContent)
+    {
+        var message = await _unitOfWork.Messages.GetByIdAsync(messageId);
+        if (message == null || message.SenderId != userId || message.IsDeleted) return null;
+
+        message.Content = newContent;
+        message.IsEdited = true;
+        message.EditedAt = DateTime.UtcNow;
+        _unitOfWork.Messages.Update(message);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ToMessageDto(message);
+    }
+
+    public async Task<MessageDto?> DeleteMessageAsync(Guid messageId, Guid userId)
+    {
+        var message = await _unitOfWork.Messages.GetByIdAsync(messageId);
+        if (message == null || message.IsDeleted) return null;
+
+        // Allow sender or group admin to delete
+        if (message.SenderId != userId)
+        {
+            var conversation = await _unitOfWork.Conversations.GetByIdAsync(message.ConversationId);
+            if (conversation == null || !conversation.IsGroup) return null;
+            var admin = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+            if (admin == null || !admin.IsAdmin) return null;
+        }
+
+        message.IsDeleted = true;
+        message.Content = "";
+        _unitOfWork.Messages.Update(message);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ToMessageDto(message);
     }
 
     public async Task<Conversation?> GetOrCreatePrivateConversationAsync(Guid userId1, Guid userId2)
@@ -183,18 +223,20 @@ public class ChatService : IChatService
         return participant != null && participant.Status == ParticipantStatus.Approved;
     }
 
-    public async Task<string?> ApproveJoinRequestAsync(Guid conversationId, Guid requesterId, Guid adminId)
+    public async Task<(string? UserName, string? GroupName)> ApproveJoinRequestAsync(Guid conversationId, Guid requesterId, Guid adminId)
     {
         var admin = await _unitOfWork.Conversations.GetParticipantAsync(conversationId, adminId);
-        if (admin == null || !admin.IsAdmin) return null;
+        if (admin == null || !admin.IsAdmin) return (null, null);
 
         var requester = await _unitOfWork.Conversations.GetParticipantAsync(conversationId, requesterId);
-        if (requester == null || requester.Status != ParticipantStatus.Pending) return null;
+        if (requester == null || requester.Status != ParticipantStatus.Pending) return (null, null);
 
         requester.Status = ParticipantStatus.Approved;
         _unitOfWork.Conversations.UpdateParticipant(requester);
         await _unitOfWork.SaveChangesAsync();
-        return requester.User?.UserName ?? "Unknown";
+
+        var conversation = await _unitOfWork.Conversations.GetByIdAsync(conversationId);
+        return (requester.User?.UserName ?? "Unknown", conversation?.GroupName ?? "Unknown Group");
     }
 
     public async Task<bool> RejectJoinRequestAsync(Guid conversationId, Guid requesterId, Guid adminId)
@@ -246,6 +288,89 @@ public class ChatService : IChatService
         if (admin == null || !admin.IsAdmin) return false;
 
         _unitOfWork.Conversations.RemoveConversation(conversation);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    // --- Group Management ---
+
+    public async Task<IEnumerable<MemberDto>> GetGroupMembersAsync(Guid conversationId, Guid userId)
+    {
+        var isApproved = await IsApprovedParticipantAsync(conversationId, userId);
+        if (!isApproved) return Enumerable.Empty<MemberDto>();
+
+        var participants = await _unitOfWork.Conversations.GetApprovedParticipantsAsync(conversationId);
+        return participants.Select(p => new MemberDto
+        {
+            UserId = p.UserId,
+            UserName = p.User?.UserName ?? "Unknown",
+            IsAdmin = p.IsAdmin,
+            JoinedAt = p.JoinedAt
+        });
+    }
+
+    public async Task<(bool Success, string? UserName)> LeaveGroupAsync(Guid conversationId, Guid userId)
+    {
+        var conversation = await _unitOfWork.Conversations.GetByIdAsync(conversationId);
+        if (conversation == null || !conversation.IsGroup) return (false, null);
+
+        var participant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+        if (participant == null || participant.Status != ParticipantStatus.Approved) return (false, null);
+
+        var userName = participant.User?.UserName ?? "Unknown";
+
+        // If admin leaves, transfer admin to earliest joined member
+        if (participant.IsAdmin)
+        {
+            var nextAdmin = conversation.Participants
+                .Where(p => p.UserId != userId && p.Status == ParticipantStatus.Approved)
+                .OrderBy(p => p.JoinedAt)
+                .FirstOrDefault();
+            
+            if (nextAdmin != null)
+            {
+                nextAdmin.IsAdmin = true;
+                _unitOfWork.Conversations.UpdateParticipant(nextAdmin);
+            }
+            else
+            {
+                // Last member leaving — disband group
+                _unitOfWork.Conversations.RemoveConversation(conversation);
+                await _unitOfWork.SaveChangesAsync();
+                return (true, userName);
+            }
+        }
+
+        _unitOfWork.Conversations.RemoveParticipant(participant);
+        await _unitOfWork.SaveChangesAsync();
+        return (true, userName);
+    }
+
+    public async Task<(bool Success, string? UserName)> KickMemberAsync(Guid conversationId, Guid memberId, Guid adminId)
+    {
+        var admin = await _unitOfWork.Conversations.GetParticipantAsync(conversationId, adminId);
+        if (admin == null || !admin.IsAdmin) return (false, null);
+
+        var member = await _unitOfWork.Conversations.GetParticipantAsync(conversationId, memberId);
+        if (member == null || member.Status != ParticipantStatus.Approved) return (false, null);
+        if (member.IsAdmin) return (false, null); // Cannot kick another admin
+
+        var userName = member.User?.UserName ?? "Unknown";
+        _unitOfWork.Conversations.RemoveParticipant(member);
+        await _unitOfWork.SaveChangesAsync();
+        return (true, userName);
+    }
+
+    public async Task<bool> RenameGroupAsync(Guid conversationId, Guid adminId, string newName)
+    {
+        var conversation = await _unitOfWork.Conversations.GetByIdAsync(conversationId);
+        if (conversation == null || !conversation.IsGroup) return false;
+
+        var admin = conversation.Participants.FirstOrDefault(p => p.UserId == adminId);
+        if (admin == null || !admin.IsAdmin) return false;
+
+        conversation.GroupName = newName;
+        _unitOfWork.Conversations.UpdateConversation(conversation);
         await _unitOfWork.SaveChangesAsync();
         return true;
     }

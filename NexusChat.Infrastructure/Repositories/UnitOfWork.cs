@@ -16,7 +16,9 @@ public class MessageRepository : IMessageRepository
 
     public async Task<Message?> GetByIdAsync(Guid id)
     {
-        return await _context.Messages.FindAsync(id);
+        return await _context.Messages
+            .Include(m => m.Sender)
+            .FirstOrDefaultAsync(m => m.Id == id);
     }
 
     public async Task<IEnumerable<Message>> GetMessagesByConversationAsync(Guid conversationId, int skip, int take)
@@ -38,6 +40,11 @@ public class MessageRepository : IMessageRepository
     public void Update(Message message)
     {
         _context.Messages.Update(message);
+    }
+
+    public void Delete(Message message)
+    {
+        _context.Messages.Remove(message);
     }
 }
 
@@ -114,14 +121,63 @@ public class ConversationRepository : IConversationRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<ConversationParticipant>> GetApprovedParticipantsAsync(Guid conversationId)
+    {
+        return await _context.ConversationParticipants
+            .Include(cp => cp.User)
+            .Where(cp => cp.ConversationId == conversationId && cp.Status == NexusChat.Domain.Enums.ParticipantStatus.Approved)
+            .OrderBy(cp => cp.JoinedAt)
+            .ToListAsync();
+    }
+
     public void UpdateParticipant(ConversationParticipant participant)
     {
         _context.ConversationParticipants.Update(participant);
     }
 
+    public void RemoveParticipant(ConversationParticipant participant)
+    {
+        _context.ConversationParticipants.Remove(participant);
+    }
+
     public void RemoveConversation(Conversation conversation)
     {
         _context.Conversations.Remove(conversation);
+    }
+
+    public void UpdateConversation(Conversation conversation)
+    {
+        _context.Conversations.Update(conversation);
+    }
+}
+
+public class UserRepository : IUserRepository
+{
+    private readonly ApplicationDbContext _context;
+
+    public UserRepository(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<User?> GetByIdAsync(Guid id)
+    {
+        return await _context.Users.FindAsync(id);
+    }
+
+    public async Task<User?> GetByUserNameAsync(string userName)
+    {
+        return await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+    }
+
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        return await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+    }
+
+    public void Update(User user)
+    {
+        _context.Users.Update(user);
     }
 }
 
@@ -131,12 +187,14 @@ public class UnitOfWork : IUnitOfWork
     
     public IMessageRepository Messages { get; }
     public IConversationRepository Conversations { get; }
+    public IUserRepository Users { get; }
 
     public UnitOfWork(ApplicationDbContext context)
     {
         _context = context;
         Messages = new MessageRepository(context);
         Conversations = new ConversationRepository(context);
+        Users = new UserRepository(context);
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
