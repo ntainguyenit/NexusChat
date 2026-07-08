@@ -18,6 +18,7 @@ public class MessageRepository : IMessageRepository
     {
         return await _context.Messages
             .Include(m => m.Sender)
+            .Include(m => m.Reactions)
             .FirstOrDefaultAsync(m => m.Id == id);
     }
 
@@ -25,6 +26,10 @@ public class MessageRepository : IMessageRepository
     {
         return await _context.Messages
             .Include(m => m.Sender)
+            .Include(m => m.Reactions)
+                .ThenInclude(r => r.User)
+            .Include(m => m.ParentMessage)
+                .ThenInclude(p => p.Sender)
             .Where(m => m.ConversationId == conversationId)
             .OrderByDescending(m => m.SentAt)
             .Skip(skip)
@@ -181,6 +186,97 @@ public class UserRepository : IUserRepository
     }
 }
 
+public class FriendshipRepository : IFriendshipRepository
+{
+    private readonly ApplicationDbContext _context;
+
+    public FriendshipRepository(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<Friendship?> GetAsync(Guid userId, Guid friendId)
+    {
+        return await _context.Friendships
+            .FirstOrDefaultAsync(f => (f.UserId == userId && f.FriendId == friendId) || 
+                                      (f.UserId == friendId && f.FriendId == userId));
+    }
+
+    public async Task<IEnumerable<Friendship>> GetFriendsAsync(Guid userId)
+    {
+        return await _context.Friendships
+            .Include(f => f.User)
+            .Include(f => f.Friend)
+            .Where(f => (f.UserId == userId || f.FriendId == userId) && f.IsAccepted)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Friendship>> GetPendingRequestsAsync(Guid userId)
+    {
+        // incoming requests
+        return await _context.Friendships
+            .Include(f => f.User)
+            .Where(f => f.FriendId == userId && !f.IsAccepted)
+            .ToListAsync();
+    }
+
+    public async Task AddAsync(Friendship friendship)
+    {
+        await _context.Friendships.AddAsync(friendship);
+    }
+
+    public void Update(Friendship friendship)
+    {
+        _context.Friendships.Update(friendship);
+    }
+
+    public void Delete(Friendship friendship)
+    {
+        _context.Friendships.Remove(friendship);
+    }
+}
+
+public class UserBlockRepository : IUserBlockRepository
+{
+    private readonly ApplicationDbContext _context;
+
+    public UserBlockRepository(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<UserBlock?> GetAsync(Guid blockerId, Guid blockedId)
+    {
+        return await _context.UserBlocks
+            .FirstOrDefaultAsync(b => b.BlockerId == blockerId && b.BlockedId == blockedId);
+    }
+
+    public async Task<bool> IsBlockedAsync(Guid userId1, Guid userId2)
+    {
+        return await _context.UserBlocks
+            .AnyAsync(b => (b.BlockerId == userId1 && b.BlockedId == userId2) || 
+                           (b.BlockerId == userId2 && b.BlockedId == userId1));
+    }
+
+    public async Task<IEnumerable<UserBlock>> GetBlockedUsersAsync(Guid blockerId)
+    {
+        return await _context.UserBlocks
+            .Include(b => b.Blocked)
+            .Where(b => b.BlockerId == blockerId)
+            .ToListAsync();
+    }
+
+    public async Task AddAsync(UserBlock block)
+    {
+        await _context.UserBlocks.AddAsync(block);
+    }
+
+    public void Delete(UserBlock block)
+    {
+        _context.UserBlocks.Remove(block);
+    }
+}
+
 public class UnitOfWork : IUnitOfWork
 {
     private readonly ApplicationDbContext _context;
@@ -188,6 +284,8 @@ public class UnitOfWork : IUnitOfWork
     public IMessageRepository Messages { get; }
     public IConversationRepository Conversations { get; }
     public IUserRepository Users { get; }
+    public IFriendshipRepository Friendships { get; }
+    public IUserBlockRepository UserBlocks { get; }
 
     public UnitOfWork(ApplicationDbContext context)
     {
@@ -195,6 +293,8 @@ public class UnitOfWork : IUnitOfWork
         Messages = new MessageRepository(context);
         Conversations = new ConversationRepository(context);
         Users = new UserRepository(context);
+        Friendships = new FriendshipRepository(context);
+        UserBlocks = new UserBlockRepository(context);
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

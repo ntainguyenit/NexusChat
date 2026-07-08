@@ -37,10 +37,31 @@ public interface IUserRepository
     void Update(User user);
 }
 
+public interface IFriendshipRepository
+{
+    Task<Friendship?> GetAsync(Guid userId, Guid friendId);
+    Task<IEnumerable<Friendship>> GetFriendsAsync(Guid userId);
+    Task<IEnumerable<Friendship>> GetPendingRequestsAsync(Guid userId); // incoming
+    Task AddAsync(Friendship friendship);
+    void Update(Friendship friendship);
+    void Delete(Friendship friendship);
+}
+
+public interface IUserBlockRepository
+{
+    Task<UserBlock?> GetAsync(Guid blockerId, Guid blockedId);
+    Task<bool> IsBlockedAsync(Guid userId1, Guid userId2); // check cả 2 chiều
+    Task<IEnumerable<UserBlock>> GetBlockedUsersAsync(Guid blockerId);
+    Task AddAsync(UserBlock block);
+    void Delete(UserBlock block);
+}
+
 public interface IUnitOfWork
 {
     IMessageRepository Messages { get; }
     IConversationRepository Conversations { get; }
     IUserRepository Users { get; }
+    IFriendshipRepository Friendships { get; }
+    IUserBlockRepository UserBlocks { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

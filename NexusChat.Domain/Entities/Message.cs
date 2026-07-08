@@ -16,4 +16,12 @@ public class Message : BaseEntity
     public bool IsEdited { get; set; } = false;
     public bool IsDeleted { get; set; } = false;
     public DateTime? EditedAt { get; set; }
+
+    public Guid? ParentMessageId { get; set; }
+    public Message? ParentMessage { get; set; }
+    public ICollection<Message> Replies { get; set; } = new List<Message>();
+
+    public bool IsPinned { get; set; } = false;
+
+    public ICollection<MessageReaction> Reactions { get; set; } = new List<MessageReaction>();
 }

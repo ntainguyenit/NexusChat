@@ -1,14 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NexusChat</title>
-    <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,17 +17,17 @@
                     <i class="fa-solid fa-bolt brand-icon"></i>
                     <h1>NexusChat</h1>
                 </div>
-                <p class="subtitle">Enter your credentials to continue</p>
+                <p class="subtitle">Nhập thông tin đăng nhập để tiếp tục</p>
                 <form id="login-form">
                     <div class="form-group">
-                        <label for="username">Username</label>
+                        <label for="username">Tên người dùng</label>
                         <input type="text" id="username" value="alice" required>
                     </div>
                     <div class="form-group">
-                        <label for="password">Password</label>
+                        <label for="password">Mật khẩu</label>
                         <input type="password" id="password" value="Pa$$w0rd" required>
                     </div>
-                    <button type="submit" class="btn-primary" id="login-btn">Sign In</button>
+                    <button type="submit" class="btn-primary" id="login-btn"><i class="fa-solid fa-right-to-bracket"></i> Đăng nhập</button>
                     <p id="login-error" class="error-msg"></p>
                 </form>
             </div>
@@ -41,32 +38,34 @@
             <!-- Sidebar -->
             <aside class="sidebar">
                 <div class="sidebar-header">
-                    <h2>Conversations</h2>
-                    <div>
-                        <button class="icon-btn" title="Join Group" onclick="document.getElementById('join-modal').classList.add('active')"><i class="fa-solid fa-users-viewfinder"></i></button>
-                        <button class="icon-btn" title="New Group"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <div class="sidebar-tabs">
+                        <button class="tab-btn active" id="tab-chats"><i class="fa-solid fa-comments"></i> Chat</button>
+                        <button class="tab-btn" id="tab-friends"><i class="fa-solid fa-user-group"></i> Bạn bè</button>
+                    </div>
+                    <div class="sidebar-actions" id="chat-actions-bar">
+                        <button class="icon-btn" title="Tham gia nhóm" onclick="document.getElementById('join-modal').classList.add('active')"><i class="fa-solid fa-users-viewfinder"></i></button>
+                        <button class="icon-btn" title="Tạo nhóm mới" onclick="openCreateGroupModal()"><i class="fa-solid fa-pen-to-square"></i></button>
+                    </div>
+                    <div class="sidebar-actions" id="friend-actions-bar" style="display: none;">
+                        <button class="icon-btn" title="Thêm bạn" onclick="document.getElementById('add-friend-modal').classList.add('active')"><i class="fa-solid fa-user-plus"></i></button>
                     </div>
                 </div>
                 <div class="search-bar">
                     <i class="fa-solid fa-search"></i>
-                    <input type="text" placeholder="Search...">
+                    <input type="text" placeholder="Tìm kiếm...">
                 </div>
                 <ul class="conversation-list" id="conversation-list">
-                    <!-- Dynamic conversations will be loaded here -->
-                    <li class="conversation-item active">
-                        <div class="avatar"><i class="fa-solid fa-user"></i></div>
-                        <div class="conv-details">
-                            <span class="conv-name">General Room</span>
-                            <span class="conv-last-msg">Welcome to NexusChat</span>
-                        </div>
-                    </li>
+                    <!-- Conversations -->
+                </ul>
+                <ul class="conversation-list" id="friend-list" style="display: none;">
+                    <!-- Friends -->
                 </ul>
                 <div class="sidebar-footer">
-                    <div class="current-user">
+                    <div class="current-user" onclick="document.getElementById('settings-modal').classList.add('active')" style="cursor: pointer;">
                         <div class="avatar small"><i class="fa-solid fa-user"></i></div>
-                        <span id="current-username">User</span>
+                        <span id="current-username">Người dùng</span>
                     </div>
-                    <button class="icon-btn" id="logout-btn" title="Sign Out"><i class="fa-solid fa-right-from-bracket"></i></button>
+                    <button class="icon-btn text-icon" id="logout-btn" title="Đăng xuất"><i class="fa-solid fa-right-from-bracket"></i> Thoát</button>
                 </div>
             </aside>
 
@@ -74,34 +73,44 @@
             <main class="chat-area">
                 <header class="chat-header">
                     <div class="chat-title">
-                        <h2 id="active-chat-name">General Room</h2>
-                        <span class="status-indicator online" title="Online"></span>
+                        <h2 id="active-chat-name">Chưa chọn nhóm</h2>
+                        <span class="status-indicator online" title="Online" id="active-chat-status"></span>
                     </div>
                     <div class="chat-actions">
                         <div class="message-search-bar" id="message-search-bar" style="display: none; margin-right: 10px;">
                             <input type="text" id="message-search-input" placeholder="Tìm kiếm..." style="padding: 4px 8px; border-radius: 12px; border: 1px solid #ccc;">
                         </div>
-                        <button class="icon-btn" title="View Join Code" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i></button>
-                        <button class="icon-btn" title="Members" id="members-btn" style="display: none;"><i class="fa-solid fa-users"></i></button>
-                        <button class="icon-btn" title="Pending Requests" id="pending-requests-btn" style="display: none; position: relative;"><i class="fa-solid fa-bell"></i><span id="pending-badge" class="pending-badge" style="display: none;">0</span></button>
-                        <button class="icon-btn" title="Rename Group" id="rename-group-btn" style="display: none;"><i class="fa-solid fa-pen"></i></button>
-                        <button class="icon-btn" title="Search in chat" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
-                        <button class="icon-btn" title="Leave Group" id="leave-group-btn" style="display: none; color: #e67e22;"><i class="fa-solid fa-right-from-bracket"></i></button>
-                        <button class="icon-btn" title="Disband Group" id="disband-btn" style="display: none; color: #e74c3c;"><i class="fa-solid fa-trash-can"></i></button>
-                        <button class="icon-btn" title="Settings"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                        <button class="icon-btn text-icon" title="Xem mã tham gia" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i> Mã</button>
+                        <button class="icon-btn text-icon" title="Thành viên" id="members-btn" style="display: none;"><i class="fa-solid fa-users"></i> Nhóm</button>
+                        <button class="icon-btn text-icon" title="Yêu cầu tham gia" id="pending-requests-btn" style="display: none; position: relative;"><i class="fa-solid fa-bell"></i> Yêu cầu <span id="pending-badge" class="pending-badge" style="display: none;">0</span></button>
+                        <button class="icon-btn text-icon" title="Ghim tin nhắn" id="pinned-messages-btn" style="display: none;"><i class="fa-solid fa-thumbtack"></i> Ghim</button>
+                        <button class="icon-btn text-icon" title="Đổi tên nhóm" id="rename-group-btn" style="display: none;"><i class="fa-solid fa-pen"></i> Đổi tên</button>
+                        <button class="icon-btn" title="Tìm kiếm" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <button class="icon-btn" title="Thêm/Xóa Bạn" id="friend-toggle-btn" style="display: none;"><i class="fa-solid fa-user-plus"></i></button>
+                        <button class="icon-btn" title="Chặn/Bỏ chặn" id="block-toggle-btn" style="display: none; color: #e74c3c;"><i class="fa-solid fa-ban"></i></button>
+                        <button class="icon-btn text-icon" title="Rời nhóm" id="leave-group-btn" style="display: none; color: #e67e22;"><i class="fa-solid fa-right-from-bracket"></i> Rời</button>
+                        <button class="icon-btn text-icon" title="Giải tán nhóm" id="disband-btn" style="display: none; color: #e74c3c;"><i class="fa-solid fa-trash-can"></i> Xóa nhóm</button>
                     </div>
                 </header>
+                
+                <div id="pinned-banner" class="pinned-banner" style="display: none;">
+                    <div class="pinned-content"><i class="fa-solid fa-thumbtack"></i> <b>Tin ghim:</b> <span id="pinned-text"></span></div>
+                    <button class="icon-btn" id="unpin-btn" title="Bỏ ghim"><i class="fa-solid fa-xmark"></i></button>
+                </div>
 
                 <div class="messages-container" id="messages-container">
-                    <!-- Dynamic messages -->
                     <div class="message system">
-                        <span>Connected to chat server</span>
+                        <span>Đã kết nối tới máy chủ chat</span>
                     </div>
                 </div>
                 
                 <div id="typing-indicator" class="typing-indicator"></div>
 
                 <div id="edit-indicator" class="edit-indicator" style="display: none;"></div>
+                <div id="reply-indicator" class="edit-indicator" style="display: none; background: rgba(155, 89, 182, 0.08); border-top: 2px solid #9b59b6;">
+                    <span><i class="fa-solid fa-reply"></i> Đang trả lời <b><span id="reply-to-user"></span></b>: <span id="reply-to-content" style="color: var(--text-muted);"></span></span>
+                    <button class="cancel-edit-btn" id="cancel-reply-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
 
                 <footer class="chat-footer">
                     <div class="input-wrapper" style="margin-left: 0;">
@@ -114,6 +123,36 @@
     </div>
 
     <!-- Modals -->
+    <!-- Custom Confirm Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div class="confirm-icon" style="font-size: 3rem; color: #e74c3c; margin-bottom: 15px;">
+                <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <h3 id="confirm-title" style="margin-bottom: 10px;">Xác nhận</h3>
+            <p id="confirm-message" style="color: var(--text-muted); margin-bottom: 20px;">Bạn có chắc chắn muốn thực hiện hành động này?</p>
+            <div class="modal-footer" style="justify-content: center;">
+                <button class="btn-secondary" id="confirm-cancel-btn">Hủy</button>
+                <button class="btn-primary" id="confirm-ok-btn" style="background: #e74c3c;">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Friend Modal -->
+    <div id="add-friend-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3><i class="fa-solid fa-user-plus" style="color: var(--primary); margin-right: 8px;"></i>Thêm bạn bè</h3>
+            <div class="form-group">
+                <label>Tên người dùng</label>
+                <input type="text" id="friend-username-input" placeholder="Nhập tên người dùng...">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('add-friend-modal').classList.remove('active')">Hủy</button>
+                <button class="btn-primary small" id="send-friend-request-btn">Gửi yêu cầu</button>
+            </div>
+        </div>
+    </div>
+
     <div id="settings-modal" class="modal">
         <div class="modal-content" style="max-width: 480px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -152,6 +191,15 @@
                 </div>
                 <button class="btn-primary small" id="save-password-btn"><i class="fa-solid fa-key"></i> Đổi mật khẩu</button>
             </div>
+
+            <hr style="border: none; border-top: 1px solid var(--border); margin: 1.2rem 0;">
+
+            <div class="settings-section">
+                <h4><i class="fa-solid fa-ban"></i> Danh sách chặn</h4>
+                <div id="blocked-users-list" class="pending-requests-list">
+                    <!-- Danh sách người bị chặn -->
+                </div>
+            </div>
             
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
@@ -161,34 +209,34 @@
     
     <div id="group-modal" class="modal">
         <div class="modal-content">
-            <h3 id="group-modal-title">New Group</h3>
+            <h3 id="group-modal-title"><i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i>Tạo nhóm mới</h3>
             <div class="form-group" id="group-name-group">
-                <label>Group Name</label>
-                <input type="text" id="group-name" placeholder="E.g. Project Team">
+                <label>Tên nhóm</label>
+                <input type="text" id="group-name" placeholder="VD: Nhóm dự án">
             </div>
             <div id="group-code-display" style="display: none; margin-top: 15px; padding: 15px; background: rgba(52, 152, 219, 0.1); border-radius: 8px; text-align: center; border: 1px dashed var(--primary);">
-                <p style="margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem;">Share this Join Code with others:</p>
+                <p style="margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem;">Chia sẻ mã tham gia này:</p>
                 <h2 id="new-group-code" style="letter-spacing: 4px; color: var(--primary); font-size: 2rem; margin: 0;"></h2>
-                <button class="btn-secondary small" id="copy-code-btn" style="margin-top: 15px; width: 100%;"><i class="fa-solid fa-copy"></i> Copy Code</button>
-                <button class="btn-primary small" onclick="closeGroupModal()" style="margin-top: 10px; width: 100%;">Close / Thoát</button>
+                <button class="btn-secondary small" id="copy-code-btn" style="margin-top: 15px; width: 100%;"><i class="fa-solid fa-copy"></i> Sao chép mã</button>
+                <button class="btn-primary small" onclick="closeGroupModal()" style="margin-top: 10px; width: 100%;">Đóng</button>
             </div>
             <div class="modal-footer" id="group-modal-footer">
-                <button class="btn-secondary" onclick="closeGroupModal()">Cancel</button>
-                <button class="btn-primary small" id="create-group-btn">Create</button>
+                <button class="btn-secondary" onclick="closeGroupModal()">Hủy</button>
+                <button class="btn-primary small" id="create-group-btn">Tạo nhóm</button>
             </div>
         </div>
     </div>
 
     <div id="join-modal" class="modal">
         <div class="modal-content">
-            <h3>Join Group</h3>
+            <h3><i class="fa-solid fa-sign-in-alt" style="color: var(--primary); margin-right: 8px;"></i>Tham gia nhóm</h3>
             <div class="form-group">
-                <label>Enter Group Code</label>
-                <input type="text" id="join-code" placeholder="E.g. X7A9KQ">
+                <label>Nhập mã nhóm</label>
+                <input type="text" id="join-code" placeholder="VD: X7A9KQ">
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('join-modal').classList.remove('active')">Cancel</button>
-                <button class="btn-primary small" id="join-group-btn">Join</button>
+                <button class="btn-secondary" onclick="document.getElementById('join-modal').classList.remove('active')">Hủy</button>
+                <button class="btn-primary small" id="join-group-btn">Tham gia</button>
             </div>
         </div>
     </div>
@@ -199,14 +247,13 @@
                 <h3 style="margin-bottom: 0;"><i class="fa-solid fa-user-clock" style="color: var(--primary); margin-right: 8px;"></i>Yêu cầu tham gia</h3>
                 <button class="icon-btn" onclick="document.getElementById('pending-requests-modal').classList.remove('active')" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div id="pending-requests-list" class="pending-requests-list">
-                <!-- Dynamic pending requests -->
-            </div>
+            <div id="pending-requests-list" class="pending-requests-list"></div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="document.getElementById('pending-requests-modal').classList.remove('active')">Đóng</button>
             </div>
         </div>
     </div>
+
     <!-- Members Modal -->
     <div id="members-modal" class="modal">
         <div class="modal-content" style="max-width: 480px;">
@@ -239,9 +286,7 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- SignalR Client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
-    <!-- Custom JS -->
     <script src="app.js"></script>
 </body>
 </html>

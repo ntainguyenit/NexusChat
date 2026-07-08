@@ -34,7 +34,7 @@ public class ChatHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task<MessageDto?> SendMessageToUser(string receiverId, string content)
+    public async Task<MessageDto?> SendMessageToUser(string receiverId, string content, Guid? parentMessageId = null)
     {
         var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(senderIdStr) || !Guid.TryParse(senderIdStr, out var senderId))
@@ -48,7 +48,7 @@ public class ChatHub : Hub
         if (conversation == null) return null;
 
         // Save message to DB
-        var messageDto = await _chatService.SendMessageAsync(senderId, conversation.Id, content);
+        var messageDto = await _chatService.SendMessageAsync(senderId, conversation.Id, content, parentMessageId);
 
         // Broadcast to receiver's devices
         var receiverConnections = _connectionManager.GetUserConnections(receiverId);
@@ -67,7 +67,7 @@ public class ChatHub : Hub
         return messageDto;
     }
 
-    public async Task<MessageDto?> SendMessageToGroup(Guid conversationId, string content)
+    public async Task<MessageDto?> SendMessageToGroup(Guid conversationId, string content, Guid? parentMessageId = null)
     {
         var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(senderIdStr) || !Guid.TryParse(senderIdStr, out var senderId))
@@ -78,7 +78,7 @@ public class ChatHub : Hub
             return null;
 
         // Save message to DB
-        var messageDto = await _chatService.SendMessageAsync(senderId, conversationId, content);
+        var messageDto = await _chatService.SendMessageAsync(senderId, conversationId, content, parentMessageId);
 
         // Broadcast to group (except sender to avoid duplicate if we rely on return value, but here we just return it)
         await Clients.GroupExcept(conversationId.ToString(), Context.ConnectionId).SendAsync("ReceiveMessage", messageDto);
@@ -170,16 +170,17 @@ public class ChatHub : Hub
 
     public async Task Typing(string receiverId, bool isGroup)
     {
-        var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(senderIdStr)) return;
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userName = Context.User?.Identity?.Name ?? "Người dùng";
+        if (string.IsNullOrEmpty(userIdStr)) return;
 
         if (isGroup)
         {
             if (Guid.TryParse(receiverId, out var convId))
             {
-                if (await _chatService.IsApprovedParticipantAsync(convId, Guid.Parse(senderIdStr)))
+                if (await _chatService.IsApprovedParticipantAsync(convId, Guid.Parse(userIdStr)))
                 {
-                    await Clients.GroupExcept(receiverId, Context.ConnectionId).SendAsync("UserTyping", senderIdStr, true);
+                    await Clients.GroupExcept(receiverId, Context.ConnectionId).SendAsync("UserTyping", userIdStr, userName, true);
                 }
             }
         }
@@ -188,23 +189,23 @@ public class ChatHub : Hub
             var receiverConnections = _connectionManager.GetUserConnections(receiverId);
             if (receiverConnections.Any())
             {
-                await Clients.Clients(receiverConnections).SendAsync("UserTyping", senderIdStr, false);
+                await Clients.Clients(receiverConnections).SendAsync("UserTyping", userIdStr, userName, false);
             }
         }
     }
 
     public async Task StoppedTyping(string receiverId, bool isGroup)
     {
-        var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(senderIdStr)) return;
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr)) return;
 
         if (isGroup)
         {
             if (Guid.TryParse(receiverId, out var convId))
             {
-                if (await _chatService.IsApprovedParticipantAsync(convId, Guid.Parse(senderIdStr)))
+                if (await _chatService.IsApprovedParticipantAsync(convId, Guid.Parse(userIdStr)))
                 {
-                    await Clients.GroupExcept(receiverId, Context.ConnectionId).SendAsync("UserStoppedTyping", senderIdStr, true);
+                    await Clients.GroupExcept(receiverId, Context.ConnectionId).SendAsync("UserStoppedTyping", userIdStr, true);
                 }
             }
         }
@@ -213,8 +214,43 @@ public class ChatHub : Hub
             var receiverConnections = _connectionManager.GetUserConnections(receiverId);
             if (receiverConnections.Any())
             {
-                await Clients.Clients(receiverConnections).SendAsync("UserStoppedTyping", senderIdStr, false);
+                await Clients.Clients(receiverConnections).SendAsync("UserStoppedTyping", userIdStr, false);
             }
         }
+    }
+
+    // --- Reactions & Pins ---
+
+    public async Task<MessageReactionDto?> ReactMessage(Guid messageId, string reactionType)
+    {
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return null;
+
+        var reaction = await _chatService.ToggleReactionAsync(messageId, userId, reactionType);
+        if (reaction == null) return null;
+
+        // Broadcast reaction
+        // we don't have conversationId easily here, let's just use Clients.All for simplicity in this demo or we can fetch the message
+        // Actually best is to let frontend listen to "MessageReacted" with messageId
+        // We can use a Group if we had the conversationId. Let's broadcast to all clients of this user's conversations.
+        // For now, simpler: broadcast to all connected clients since we lack convId context directly without another DB call
+        await Clients.All.SendAsync("MessageReacted", messageId, reaction);
+        return reaction;
+    }
+
+    public async Task<bool> PinMessage(Guid messageId, Guid conversationId, bool isPinned)
+    {
+        var userIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return false;
+
+        var success = await _chatService.PinMessageAsync(messageId, userId, isPinned);
+        if (success)
+        {
+            await Clients.Group(conversationId.ToString()).SendAsync("MessagePinned", messageId, isPinned);
+            return true;
+        }
+        return false;
     }
 }

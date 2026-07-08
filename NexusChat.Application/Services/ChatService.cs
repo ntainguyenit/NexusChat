@@ -25,7 +25,17 @@ public class ChatService : IChatService
         Status = m.Status,
         IsEdited = m.IsEdited,
         IsDeleted = m.IsDeleted,
-        EditedAt = m.EditedAt.HasValue ? DateTime.SpecifyKind(m.EditedAt.Value, DateTimeKind.Utc) : null
+        EditedAt = m.EditedAt.HasValue ? DateTime.SpecifyKind(m.EditedAt.Value, DateTimeKind.Utc) : null,
+        ParentMessageId = m.ParentMessageId,
+        ParentMessageContent = m.ParentMessage?.IsDeleted == false ? m.ParentMessage.Content : (m.ParentMessage?.IsDeleted == true ? "Tin nhắn đã bị xóa" : null),
+        ParentMessageSender = m.ParentMessage?.Sender?.UserName,
+        IsPinned = m.IsPinned,
+        Reactions = m.Reactions?.Select(r => new MessageReactionDto 
+        {
+            UserId = r.UserId,
+            UserName = r.User?.UserName ?? "Unknown",
+            ReactionType = r.ReactionType
+        }).ToList() ?? new List<MessageReactionDto>()
     };
 
     public async Task<IEnumerable<MessageDto>> GetMessagesAsync(Guid conversationId, int skip, int take)
@@ -34,7 +44,7 @@ public class ChatService : IChatService
         return messages.Select(ToMessageDto);
     }
 
-    public async Task<MessageDto> SendMessageAsync(Guid senderId, Guid conversationId, string content)
+    public async Task<MessageDto> SendMessageAsync(Guid senderId, Guid conversationId, string content, Guid? parentMessageId = null)
     {
         var conversation = await _unitOfWork.Conversations.GetByIdAsync(conversationId);
         if (conversation == null)
@@ -44,13 +54,26 @@ public class ChatService : IChatService
         if (!isApproved)
             throw new Exception("You are not an approved participant of this conversation");
 
+        // Check blocking in private conversations
+        if (!conversation.IsGroup)
+        {
+            var otherParticipant = conversation.Participants.FirstOrDefault(p => p.UserId != senderId);
+            if (otherParticipant != null)
+            {
+                var isBlocked = await _unitOfWork.UserBlocks.IsBlockedAsync(senderId, otherParticipant.UserId);
+                if (isBlocked)
+                    throw new Exception("Cannot send message. User is blocked or you are blocked.");
+            }
+        }
+
         var message = new Message
         {
             ConversationId = conversationId,
             SenderId = senderId,
             Content = content,
             SentAt = DateTime.UtcNow,
-            Status = MessageStatus.Sent
+            Status = MessageStatus.Sent,
+            ParentMessageId = parentMessageId
         };
 
         await _unitOfWork.Messages.AddAsync(message);
@@ -373,5 +396,196 @@ public class ChatService : IChatService
         _unitOfWork.Conversations.UpdateConversation(conversation);
         await _unitOfWork.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<bool> PinMessageAsync(Guid messageId, Guid userId, bool isPinned)
+    {
+        var message = await _unitOfWork.Messages.GetByIdAsync(messageId);
+        if (message == null) return false;
+
+        var isApproved = await IsApprovedParticipantAsync(message.ConversationId, userId);
+        if (!isApproved) return false;
+
+        message.IsPinned = isPinned;
+        _unitOfWork.Messages.Update(message);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<MessageReactionDto?> ToggleReactionAsync(Guid messageId, Guid userId, string reactionType)
+    {
+        var message = await _unitOfWork.Messages.GetByIdAsync(messageId);
+        if (message == null) return null;
+
+        var isApproved = await IsApprovedParticipantAsync(message.ConversationId, userId);
+        if (!isApproved) return null;
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId);
+        if (user == null) return null;
+
+        var existingReaction = message.Reactions.FirstOrDefault(r => r.UserId == userId);
+        if (existingReaction != null)
+        {
+            if (existingReaction.ReactionType == reactionType)
+            {
+                // Toggle off
+                message.Reactions.Remove(existingReaction);
+                await _unitOfWork.SaveChangesAsync();
+                return new MessageReactionDto { UserId = userId, UserName = user.UserName, ReactionType = "" };
+            }
+            else
+            {
+                // Change reaction
+                existingReaction.ReactionType = reactionType;
+            }
+        }
+        else
+        {
+            // Add new reaction
+            var newReaction = new MessageReaction
+            {
+                MessageId = messageId,
+                UserId = userId,
+                ReactionType = reactionType
+            };
+            message.Reactions.Add(newReaction);
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+
+        return new MessageReactionDto
+        {
+            UserId = userId,
+            UserName = user.UserName,
+            ReactionType = reactionType
+        };
+    }
+
+    // --- Friends Management ---
+
+    public async Task<bool> SendFriendRequestAsync(Guid userId, string friendUserName)
+    {
+        var friend = await _unitOfWork.Users.GetByUserNameAsync(friendUserName);
+        if (friend == null || friend.Id == userId) return false;
+
+        var existing = await _unitOfWork.Friendships.GetAsync(userId, friend.Id);
+        if (existing != null) return false;
+
+        await _unitOfWork.Friendships.AddAsync(new Friendship
+        {
+            UserId = userId,
+            FriendId = friend.Id,
+            IsAccepted = false
+        });
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> AcceptFriendRequestAsync(Guid userId, Guid friendId)
+    {
+        var friendship = await _unitOfWork.Friendships.GetAsync(userId, friendId);
+        // Only the receiver can accept
+        if (friendship == null || friendship.IsAccepted || friendship.FriendId != userId) return false;
+
+        friendship.IsAccepted = true;
+        _unitOfWork.Friendships.Update(friendship);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RejectFriendRequestAsync(Guid userId, Guid friendId)
+    {
+        var friendship = await _unitOfWork.Friendships.GetAsync(userId, friendId);
+        if (friendship == null || friendship.IsAccepted || friendship.FriendId != userId) return false;
+
+        _unitOfWork.Friendships.Delete(friendship);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RemoveFriendAsync(Guid userId, Guid friendId)
+    {
+        var friendship = await _unitOfWork.Friendships.GetAsync(userId, friendId);
+        if (friendship == null || !friendship.IsAccepted) return false;
+
+        _unitOfWork.Friendships.Delete(friendship);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<IEnumerable<FriendDto>> GetFriendsListAsync(Guid userId)
+    {
+        var friends = await _unitOfWork.Friendships.GetFriendsAsync(userId);
+        return friends.Select(f => 
+        {
+            var isUser1 = f.UserId == userId;
+            var friendUser = isUser1 ? f.Friend : f.User;
+            return new FriendDto
+            {
+                UserId = friendUser.Id,
+                UserName = friendUser.UserName,
+                IsOnline = false, // Will be updated by signalr or another layer
+                IsPending = false,
+                IsIncoming = false
+            };
+        });
+    }
+
+    public async Task<IEnumerable<FriendDto>> GetPendingFriendRequestsAsync(Guid userId)
+    {
+        var pending = await _unitOfWork.Friendships.GetPendingRequestsAsync(userId);
+        return pending.Select(f => new FriendDto
+        {
+            UserId = f.User.Id,
+            UserName = f.User.UserName,
+            IsOnline = false,
+            IsPending = true,
+            IsIncoming = true
+        });
+    }
+
+    // --- Blocks Management ---
+
+    public async Task<bool> BlockUserAsync(Guid blockerId, Guid blockedId)
+    {
+        if (blockerId == blockedId) return false;
+        var existing = await _unitOfWork.UserBlocks.GetAsync(blockerId, blockedId);
+        if (existing != null) return true; // already blocked
+
+        // Remove friendship if exists
+        var friendship = await _unitOfWork.Friendships.GetAsync(blockerId, blockedId);
+        if (friendship != null)
+        {
+            _unitOfWork.Friendships.Delete(friendship);
+        }
+
+        await _unitOfWork.UserBlocks.AddAsync(new UserBlock { BlockerId = blockerId, BlockedId = blockedId });
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> UnblockUserAsync(Guid blockerId, Guid blockedId)
+    {
+        var existing = await _unitOfWork.UserBlocks.GetAsync(blockerId, blockedId);
+        if (existing == null) return false;
+
+        _unitOfWork.UserBlocks.Delete(existing);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<IEnumerable<BlockedUserDto>> GetBlockedUsersAsync(Guid blockerId)
+    {
+        var blocks = await _unitOfWork.UserBlocks.GetBlockedUsersAsync(blockerId);
+        return blocks.Select(b => new BlockedUserDto
+        {
+            UserId = b.BlockedId,
+            UserName = b.Blocked.UserName
+        });
+    }
+
+    public async Task<bool> IsBlockedAsync(Guid userId1, Guid userId2)
+    {
+        return await _unitOfWork.UserBlocks.IsBlockedAsync(userId1, userId2);
     }
 }

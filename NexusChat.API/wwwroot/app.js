@@ -18,6 +18,12 @@ let hubConnection = null;
 let activeReceiverId = null; // Can be UserId (private) or ConversationId (group)
 let activeIsGroup = false;
 let usersList = [];
+let friendsList = [];
+let pendingFriends = [];
+let blockedUsers = [];
+let currentTab = 'chats'; // 'chats' or 'friends'
+let replyToMessageId = null;
+let pinnedMessageId = null;
 
 // API Base URL
 const API_BASE = '/api';
@@ -67,6 +73,85 @@ logoutBtn.addEventListener('click', () => {
     loginView.classList.add('active');
     messagesContainer.innerHTML = '';
 });
+
+
+// --- Tabs Logic ---
+const tabChats = document.getElementById('tab-chats');
+const tabFriends = document.getElementById('tab-friends');
+const friendListUl = document.getElementById('friend-list');
+const chatActionsBar = document.getElementById('chat-actions-bar');
+const friendActionsBar = document.getElementById('friend-actions-bar');
+
+tabChats?.addEventListener('click', () => {
+    currentTab = 'chats';
+    tabChats.classList.add('active');
+    tabFriends?.classList.remove('active');
+    conversationList.style.display = 'block';
+    if(friendListUl) friendListUl.style.display = 'none';
+    if(chatActionsBar) chatActionsBar.style.display = 'flex';
+    if(friendActionsBar) friendActionsBar.style.display = 'none';
+});
+
+tabFriends?.addEventListener('click', async () => {
+    currentTab = 'friends';
+    tabFriends.classList.add('active');
+    tabChats?.classList.remove('active');
+    conversationList.style.display = 'none';
+    if(friendListUl) friendListUl.style.display = 'block';
+    if(chatActionsBar) chatActionsBar.style.display = 'none';
+    if(friendActionsBar) friendActionsBar.style.display = 'flex';
+    await fetchFriends();
+});
+
+async function fetchFriends() {
+    try {
+        const res = await fetch('/api/Friends', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+            friendsList = await res.json();
+            renderFriends();
+        }
+    } catch(e) { console.error(e); }
+}
+
+function renderFriends() {
+    if(!friendListUl) return;
+    friendListUl.innerHTML = '';
+    friendsList.forEach(f => {
+        const li = document.createElement('li');
+        li.className = 'conversation-item';
+        li.innerHTML = `
+            <div class="avatar"><i class="fa-solid fa-user"></i></div>
+            <div class="conv-details">
+                <span class="conv-name">${escapeHtml(f.friendName)} ${f.isOnline ? '<span class="status-indicator online" style="display:inline-block; margin-left: 5px;"></span>' : ''}</span>
+                <span class="conv-last-msg">Bạn bè</span>
+            </div>
+            <button class="icon-btn" onclick="removeFriend('${f.friendId}', event)" style="z-index:10;"><i class="fa-solid fa-user-minus"></i></button>
+        `;
+        li.addEventListener('click', () => {
+            selectUser({ id: f.friendId, userName: f.friendName, isGroup: false, isOnline: f.isOnline });
+        });
+        friendListUl.appendChild(li);
+    });
+}
+
+window.removeFriend = async (id, e) => {
+    if(e) e.stopPropagation();
+    if(!await customConfirm('Xóa bạn bè?')) return;
+    await fetch(`/api/Friends/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
+    fetchFriends();
+};
+
+window.addFriend = async (id) => {
+    if(!await customConfirm('Thêm bạn bè?')) return;
+    await fetch('/api/Friends', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ friendId: id })});
+    customAlert('Đã gửi kết bạn!');
+};
+
+window.blockUser = async (id) => {
+    if(!await customConfirm('Chặn người dùng này?')) return;
+    await fetch('/api/Blocks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ blockedUserId: id })});
+    customAlert('Đã chặn!');
+};
 
 // --- Chat Initialization ---
 async function initializeChat() {
@@ -233,7 +318,7 @@ async function selectUser(user) {
             const messages = await msgRes.json();
             messagesContainer.innerHTML = '';
             messages.reverse().forEach(msg => {
-                appendMessage(msg.content, msg.senderId === currentUser.id, new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), msg.id, msg.status === 2, msg.isEdited, msg.isDeleted, msg.senderId);
+                appendMessage(msg.content, msg.senderId === currentUser.id, new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), msg.id, msg.status === 2, msg.isEdited, msg.isDeleted, msg.senderId, msg.quote, msg.reactions, msg.isPinned);
                 
                 // Mark as read if not sent by me and not read
                 if (msg.senderId !== currentUser.id && msg.status !== 2) {
@@ -253,12 +338,45 @@ async function startSignalR() {
         .withAutomaticReconnect()
         .build();
 
+    
+    hubConnection.on("MessagePinned", (data) => {
+        const banner = document.getElementById('pinned-banner');
+        const text = document.getElementById('pinned-text');
+        if(banner && text) {
+            text.textContent = data.content;
+            banner.style.display = 'flex';
+            pinnedMessageId = data.messageId;
+        }
+    });
+
+    hubConnection.on("MessageUnpinned", (data) => {
+        const banner = document.getElementById('pinned-banner');
+        if(banner) banner.style.display = 'none';
+        pinnedMessageId = null;
+    });
+
+    hubConnection.on("MessageReacted", (data) => {
+        const msgEl = document.querySelector(`[data-msg-id="${data.messageId}"]`);
+        if (msgEl) {
+            let reactBar = msgEl.querySelector('.reactions-bar');
+            if(!reactBar) {
+                reactBar = document.createElement('div');
+                reactBar.className = 'reactions-bar';
+                msgEl.querySelector('.msg-content').appendChild(reactBar);
+            }
+            reactBar.innerHTML = '';
+            for(let r in data.reactions) {
+                reactBar.innerHTML += `<span class="reaction-badge">${r} ${data.reactions[r]}</span>`;
+            }
+        }
+    });
+
     hubConnection.on("ReceiveMessage", (message) => {
         const isFromActive = message.senderId === activeReceiverId || message.conversationId === activeReceiverId;
         const isFromMe = message.senderId === currentUser.id;
         
         if (isFromActive && !isFromMe) {
-            appendMessage(message.content, false, null, message.id, false);
+            appendMessage(message.content, false, null, message.id, false, false, false, message.senderId, message.quote, message.reactions, message.isPinned);
             if (document.visibilityState === 'visible') {
                 hubConnection.invoke("MarkAsRead", message.id).catch(console.error);
             }
@@ -287,7 +405,7 @@ async function startSignalR() {
         const isMatch = (!isGroup && userId.toLowerCase() === activeReceiverId?.toLowerCase()) || isGroup;
         if (isMatch) {
             const user = usersList.find(u => u.id.toLowerCase() === userId.toLowerCase());
-            typingDiv.textContent = `${user ? user.userName : 'Someone'} is typing...`;
+            typingDiv.textContent = `${user ? user.userName : 'Ai đó'} is typing...`;
             typingDiv.classList.add('active');
             
             clearTimeout(typingTimeout);
@@ -454,9 +572,9 @@ async function sendMessage() {
     try {
         let sentMsg;
         if (activeIsGroup) {
-            sentMsg = await hubConnection.invoke("SendMessageToGroup", activeReceiverId, text);
+            sentMsg = await hubConnection.invoke("SendMessageToGroup", activeReceiverId, text, replyToMessageId);
         } else {
-            sentMsg = await hubConnection.invoke("SendMessageToUser", activeReceiverId, text);
+            sentMsg = await hubConnection.invoke("SendMessageToUser", activeReceiverId, text, replyToMessageId);
         }
         
         // Update the temporary ID with the real ID from the server
@@ -473,7 +591,7 @@ async function sendMessage() {
     }
 }
 
-function appendMessage(text, isSent, timeStr, msgId = null, isRead = false, isEdited = false, isDeleted = false, senderId = null) {
+function appendMessage(text, isSent, timeStr, msgId = null, isRead = false, isEdited = false, isDeleted = false, senderId = null, quote = null, reactions = null, isPinned = false) {
     if (text && text.startsWith("[SYSTEM]")) {
         const sysText = text.substring(8).trim();
         const sysDiv = document.createElement('div');
@@ -496,29 +614,61 @@ function appendMessage(text, isSent, timeStr, msgId = null, isRead = false, isEd
         statusHtml = `<i id="status-${msgId}" class="msg-status fa-solid ${isRead ? 'fa-check-double read' : 'fa-check'}"></i>`;
     }
 
-    let contentHtml;
+    let contentHtml = '';
     if (isDeleted) {
         contentHtml = '<i class="fa-solid fa-ban"></i> Tin nhắn đã bị xóa';
     } else {
-        contentHtml = escapeHtml(text) + (isEdited ? ' <span class="edited-tag">(đã chỉnh sửa)</span>' : '');
+        if(quote) {
+            contentHtml += `<div class="quote-block" style="border-left: 3px solid var(--primary); margin-bottom: 5px; padding-left: 5px; opacity: 0.8; font-size: 0.9em;">
+                <div class="quote-author"><i class="fa-solid fa-reply"></i> ${escapeHtml(quote.authorName || 'Ai đó')}</div>
+                <div class="quote-text">${escapeHtml(quote.content)}</div>
+            </div>`;
+        }
+        contentHtml += escapeHtml(text) + (isEdited ? ' <span class="edited-tag">(đã chỉnh sửa)</span>' : '');
     }
 
-    // Context menu button (only for non-deleted, non-system messages)
+    // Context menu button
     let menuBtnHtml = '';
     if (!isDeleted && msgId && !String(msgId).startsWith('temp-')) {
-        menuBtnHtml = `<button class="msg-menu-btn" onclick="openMsgContextMenu(event, '${msgId}', ${isSent})"><i class="fa-solid fa-ellipsis-vertical"></i></button>`;
+        menuBtnHtml = `<button class="msg-menu-btn" onclick="openMsgContextMenu(event, '${msgId}', ${isSent}, '${escapeHtml(text)}')"><i class="fa-solid fa-ellipsis-vertical"></i></button>`;
     }
     
+    // Reactions
+    let reactionsHtml = '';
+    if(reactions && Object.keys(reactions).length > 0) {
+        reactionsHtml = '<div class="reactions-bar" style="display: flex; gap: 5px; margin-top: 5px; font-size: 0.8em; flex-wrap: wrap;">';
+        for(let r in reactions) {
+            reactionsHtml += `<span class="reaction-badge" style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 10px;">${r} ${reactions[r]}</span>`;
+        }
+        reactionsHtml += '</div>';
+    }
+
+    let hoverReactionsHtml = '';
+    if (!isDeleted && msgId && !String(msgId).startsWith('temp-')) {
+        hoverReactionsHtml = `
+            <div class="msg-hover-reactions">
+                <button class="hover-reaction-btn" onclick="reactMessage('${msgId}', '👍')" title="Thích">👍</button>
+                <button class="hover-reaction-btn" onclick="reactMessage('${msgId}', '❤️')" title="Yêu">❤️</button>
+                <button class="hover-reaction-btn" onclick="reactMessage('${msgId}', '😂')" title="Haha">😂</button>
+                <button class="hover-reaction-btn" onclick="reactMessage('${msgId}', '😢')" title="Buồn">😢</button>
+                <button class="hover-reaction-btn" onclick="reactMessage('${msgId}', '😡')" title="Phẫn nộ">😡</button>
+            </div>
+        `;
+    }
+
     msgDiv.innerHTML = `
-        ${menuBtnHtml}
-        <div class="message-bubble msg-content ${isDeleted ? 'deleted-msg' : ''}">${contentHtml}</div>
-        <span class="message-time">${time} ${statusHtml}</span>
+        <div class="msg-bubble-wrapper">
+            ${isSent ? menuBtnHtml : ''}
+            ${hoverReactionsHtml}
+            <div class="message-bubble msg-content ${isDeleted ? 'deleted-msg' : ''}">${contentHtml}${reactionsHtml}</div>
+            ${!isSent ? menuBtnHtml : ''}
+        </div>
+        <span class="message-time">${time} ${statusHtml} ${isPinned ? '<i class="fa-solid fa-thumbtack" style="color:var(--primary); margin-left: 5px;"></i>' : ''}</span>
     `;
     
     messagesContainer.appendChild(msgDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
-
 function escapeHtml(unsafe) {
     return unsafe
          .replace(/&/g, "&amp;")
@@ -529,9 +679,8 @@ function escapeHtml(unsafe) {
 }
 
 // --- Context Menu for Messages ---
-window.openMsgContextMenu = (event, msgId, isSent) => {
+window.openMsgContextMenu = (event, msgId, isSent, text) => {
     event.stopPropagation();
-    // Remove any existing context menu
     document.querySelectorAll('.msg-context-menu').forEach(m => m.remove());
 
     const menu = document.createElement('div');
@@ -541,12 +690,12 @@ window.openMsgContextMenu = (event, msgId, isSent) => {
     if (isSent) {
         menuItems += `<div class="ctx-item" onclick="startEditMessage('${msgId}')"><i class="fa-solid fa-pen"></i> Sửa</div>`;
     }
-    // Both sender and admin can delete
+    menuItems += `<div class="ctx-item" onclick="replyMessage('${msgId}', '${text}')"><i class="fa-solid fa-reply"></i> Trả lời</div>`;
+    menuItems += `<div class="ctx-item" onclick="pinMessage('${msgId}')"><i class="fa-solid fa-thumbtack"></i> Ghim</div>`;
     menuItems += `<div class="ctx-item danger" onclick="deleteMessage('${msgId}')"><i class="fa-solid fa-trash"></i> Xóa</div>`;
     
     menu.innerHTML = menuItems;
     
-    // Position menu near the button
     const btn = event.currentTarget;
     const rect = btn.getBoundingClientRect();
     menu.style.position = 'fixed';
@@ -556,13 +705,36 @@ window.openMsgContextMenu = (event, msgId, isSent) => {
     
     document.body.appendChild(menu);
     
-    // Close on click outside
     setTimeout(() => {
         document.addEventListener('click', function closeMenu() {
             menu.remove();
             document.removeEventListener('click', closeMenu);
         }, { once: true });
     }, 10);
+};
+
+window.replyMessage = (msgId, text) => {
+    replyToMessageId = msgId;
+    document.querySelectorAll('.msg-context-menu').forEach(m => m.remove());
+    const editBar = document.getElementById('edit-indicator');
+    editBar.innerHTML = `<i class="fa-solid fa-reply" style="color: var(--primary);"></i> Trả lời <button onclick="cancelEdit()" class="cancel-edit-btn"><i class="fa-solid fa-xmark"></i></button>`;
+    editBar.style.display = 'flex';
+    messageInput.focus();
+};
+
+window.pinMessage = async (msgId) => {
+    document.querySelectorAll('.msg-context-menu').forEach(m => m.remove());
+    if(!await customConfirm('Ghim tin nhắn này?')) return;
+    try {
+        await hubConnection.invoke('PinMessage', msgId);
+    } catch(e) { console.error(e); }
+};
+
+window.reactMessage = async (msgId, reaction) => {
+    document.querySelectorAll('.msg-context-menu').forEach(m => m.remove());
+    try {
+        await hubConnection.invoke('ReactMessage', msgId, reaction);
+    } catch(e) { console.error(e); }
 };
 
 window.startEditMessage = (msgId) => {
@@ -588,13 +760,14 @@ window.startEditMessage = (msgId) => {
 
 window.cancelEdit = () => {
     editingMessageId = null;
+    replyToMessageId = null;
     messageInput.value = '';
     document.getElementById('edit-indicator').style.display = 'none';
 };
 
 window.deleteMessage = async (msgId) => {
     document.querySelectorAll('.msg-context-menu').forEach(m => m.remove());
-    if (!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return;
+    if (!await customConfirm('Bạn có chắc muốn xóa tin nhắn này?')) return;
     
     try {
         const result = await hubConnection.invoke('DeleteMessage', msgId);
@@ -654,7 +827,11 @@ async function openMembersModal(conversationId) {
 }
 
 window.kickMember = async (conversationId, memberId) => {
-    if (!confirm('Bạn có chắc muốn xóa thành viên này khỏi nhóm?')) return;
+    document.getElementById('members-modal').classList.remove('active');
+    if (!await customConfirm('Bạn có chắc muốn xóa thành viên này khỏi nhóm?')) {
+        document.getElementById('members-modal').classList.add('active'); // Re-open if cancelled
+        return;
+    }
     try {
         const res = await fetch(`${API_BASE}/Chat/group/${conversationId}/kick`, {
             method: 'POST',
@@ -665,13 +842,13 @@ window.kickMember = async (conversationId, memberId) => {
             showToast('<i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Đã xóa thành viên.', '');
             openMembersModal(conversationId); // Refresh
         } else {
-            alert('Không thể xóa thành viên.');
+            await customAlert('Không thể xóa thành viên.');
         }
     } catch (e) { console.error(e); }
 };
 
 async function leaveGroup(conversationId) {
-    if (!confirm('Bạn có chắc muốn rời nhóm này?')) return;
+    if (!await customConfirm('Bạn có chắc muốn rời nhóm này?')) return;
     try {
         const res = await fetch(`${API_BASE}/Chat/group/${conversationId}/leave`, {
             method: 'POST',
@@ -683,7 +860,7 @@ async function leaveGroup(conversationId) {
             messagesContainer.innerHTML = '';
             activeReceiverId = null;
         } else {
-            alert('Không thể rời nhóm.');
+            await customAlert('Không thể rời nhóm.');
         }
     } catch (e) { console.error(e); }
 }
@@ -695,7 +872,7 @@ function openRenameModal(conversationId, currentName) {
     document.getElementById('rename-group-modal').classList.add('active');
     document.getElementById('rename-group-save').onclick = async () => {
         const newName = input.value.trim();
-        if (!newName) return;
+        if (!newName) { await customAlert('Tên không hợp lệ'); return; }
         try {
             const res = await fetch(`${API_BASE}/Chat/group/${conversationId}`, {
                 method: 'PUT',
@@ -746,7 +923,7 @@ document.getElementById('copy-code-btn').addEventListener('click', () => {
 
 document.getElementById('create-group-btn').addEventListener('click', async () => {
     const name = document.getElementById('group-name').value.trim();
-    if (!name) return alert("Please enter a group name");
+    if (!name) { await customAlert("Vui lòng nhập tên nhóm"); return; }
     
     // Create group with only the creator — others must join via code + approval
     const participantIds = [];
@@ -773,17 +950,17 @@ document.getElementById('create-group-btn').addEventListener('click', async () =
             await fetchUsers(); // Refresh sidebar to show new group
         } else {
             const errText = await res.text();
-            alert("Failed to create group: " + errText);
+            await customAlert("Không thể tạo nhóm: " + errText);
         }
     } catch(err) {
-        alert("Error creating group");
+        await customAlert("Lỗi khi tạo nhóm");
     }
 });
 
 // Join Group
 document.getElementById('join-group-btn').addEventListener('click', async () => {
     const code = document.getElementById('join-code').value.trim();
-    if (!code) return alert("Please enter a join code");
+    if (!code) { await customAlert("Vui lòng nhập mã tham gia"); return; }
     
     try {
         const res = await fetch(`${API_BASE}/Chat/group/join`, {
@@ -802,7 +979,7 @@ document.getElementById('join-group-btn').addEventListener('click', async () => 
                 await fetchUsers();
             }
         } else {
-            alert("Failed to join group. Check the code.");
+            await customAlert("Không thể tham gia nhóm. Hãy kiểm tra lại mã.");
         }
     } catch (e) {
         console.error(e);
@@ -862,11 +1039,11 @@ window.reviewJoinRequest = async (conversationId, requesterId, isApproved, btnEl
             updatePendingBadge();
         } else {
             const errorMsg = await res.text();
-            alert(`Lỗi: ${errorMsg || 'Không thể xử lý yêu cầu'}`);
+            await customAlert(`Lỗi: ${errorMsg || 'Không thể xử lý yêu cầu'}`);
         }
     } catch (e) {
         console.error(e);
-        alert(`Lỗi: ${e.message}`);
+        await customAlert(`Lỗi: ${e.message}`);
     }
 };
 
@@ -935,7 +1112,7 @@ async function updatePendingBadge() {
 }
 
 async function disbandGroup(conversationId) {
-    if (!confirm("Are you sure you want to disband this group? This will delete all messages and remove all members. This action cannot be undone.")) return;
+    if (!await customConfirm("Bạn có chắc chắn muốn giải tán nhóm này? Hành động này không thể hoàn tác.")) return;
     
     try {
         const res = await fetch(`${API_BASE}/Chat/group/${conversationId}`, {
@@ -943,11 +1120,11 @@ async function disbandGroup(conversationId) {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
-            alert("Group disbanded successfully.");
+            await customAlert("Giải tán nhóm thành công.");
             await fetchUsers();
             messagesContainer.innerHTML = '';
         } else {
-            alert("Failed to disband group.");
+            await customAlert("Không thể giải tán nhóm.");
         }
     } catch (e) {
         console.error(e);
@@ -987,7 +1164,7 @@ messageSearchInput.addEventListener('input', (e) => {
 document.getElementById('save-profile-btn')?.addEventListener('click', async () => {
     const userName = document.getElementById('setting-username').value.trim();
     const email = document.getElementById('setting-email').value.trim();
-    if (!userName || !email) return alert('Vui lòng nhập đầy đủ thông tin.');
+    if (!userName || !email) { await customAlert('Vui lòng nhập đầy đủ thông tin.'); return; }
     
     try {
         const res = await fetch(`${API_BASE}/Auth/profile`, {
@@ -1003,7 +1180,7 @@ document.getElementById('save-profile-btn')?.addEventListener('click', async () 
             showToast('<i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Cập nhật hồ sơ thành công!', '');
         } else {
             const err = await res.text();
-            alert(err || 'Không thể cập nhật.');
+            await customAlert(err || 'Không thể cập nhật.');
         }
     } catch (e) { console.error(e); }
 });
@@ -1013,9 +1190,9 @@ document.getElementById('save-password-btn')?.addEventListener('click', async ()
     const newPassword = document.getElementById('new-password').value;
     const confirmPassword = document.getElementById('confirm-password').value;
     
-    if (!currentPassword || !newPassword) return alert('Vui lòng nhập đầy đủ.');
-    if (newPassword !== confirmPassword) return alert('Mật khẩu mới không khớp!');
-    if (newPassword.length < 6) return alert('Mật khẩu mới tối thiểu 6 ký tự.');
+    if (!currentPassword || !newPassword) { await customAlert('Vui lòng nhập đầy đủ.'); return; }
+    if (newPassword !== confirmPassword) return await customAlert('Mật khẩu mới không khớp!');
+    if (newPassword.length < 6) { await customAlert('Mật khẩu mới tối thiểu 6 ký tự.'); return; }
     
     try {
         const res = await fetch(`${API_BASE}/Auth/password`, {
@@ -1030,7 +1207,66 @@ document.getElementById('save-password-btn')?.addEventListener('click', async ()
             showToast('<i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Đổi mật khẩu thành công!', '');
         } else {
             const err = await res.text();
-            alert(err || 'Không thể đổi mật khẩu.');
+            await customAlert(err || 'Không thể đổi mật khẩu.');
         }
     } catch (e) { console.error(e); }
+});
+
+
+// --- Custom Modals ---
+function customAlert(message, title = 'Thông báo') {
+    return new Promise(resolve => {
+        document.getElementById('confirm-title').innerHTML = `<i class="fa-solid fa-circle-info"></i> ${title}`;
+        document.getElementById('confirm-message').innerHTML = message;
+        document.getElementById('confirm-cancel-btn').style.display = 'none';
+        
+        const modal = document.getElementById('confirm-modal');
+        const okBtn = document.getElementById('confirm-ok-btn');
+        
+        const handleOk = () => {
+            modal.classList.remove('active');
+            okBtn.removeEventListener('click', handleOk);
+            resolve();
+        };
+        okBtn.addEventListener('click', handleOk);
+        modal.classList.add('active');
+    });
+}
+
+function customConfirm(message, title = 'Xác nhận') {
+    return new Promise(resolve => {
+        document.getElementById('confirm-title').innerHTML = `<i class="fa-solid fa-circle-question"></i> ${title}`;
+        document.getElementById('confirm-message').innerHTML = message;
+        document.getElementById('confirm-cancel-btn').style.display = 'inline-block';
+        
+        const modal = document.getElementById('confirm-modal');
+        const okBtn = document.getElementById('confirm-ok-btn');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+        
+        const handleOk = () => {
+            modal.classList.remove('active');
+            cleanup();
+            resolve(true);
+        };
+        const handleCancel = () => {
+            modal.classList.remove('active');
+            cleanup();
+            resolve(false);
+        };
+        
+        const cleanup = () => {
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
+        };
+        
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+        modal.classList.add('active');
+    });
+}
+
+document.getElementById('unpin-btn')?.addEventListener('click', async () => {
+    if(!pinnedMessageId) return;
+    if(!await customConfirm('Bỏ ghim tin nhắn?')) return;
+    await hubConnection.invoke('UnpinMessage', pinnedMessageId);
 });

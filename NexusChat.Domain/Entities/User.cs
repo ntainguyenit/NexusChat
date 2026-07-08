@@ -1,4 +1,4 @@
-﻿namespace NexusChat.Domain.Entities;
+namespace NexusChat.Domain.Entities;
 
 public class User : BaseEntity
 {
@@ -10,4 +10,12 @@ public class User : BaseEntity
     // Navigation properties
     public ICollection<ConversationParticipant> ConversationParticipants { get; set; } = new List<ConversationParticipant>();
     public ICollection<Message> SentMessages { get; set; } = new List<Message>();
+    
+    public ICollection<Friendship> FriendshipsInitiated { get; set; } = new List<Friendship>();
+    public ICollection<Friendship> FriendshipsReceived { get; set; } = new List<Friendship>();
+
+    public ICollection<UserBlock> BlocksInitiated { get; set; } = new List<UserBlock>();
+    public ICollection<UserBlock> BlocksReceived { get; set; } = new List<UserBlock>();
+
+    public ICollection<MessageReaction> Reactions { get; set; } = new List<MessageReaction>();
 }

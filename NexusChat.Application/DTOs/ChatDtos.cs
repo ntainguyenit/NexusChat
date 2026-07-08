@@ -15,6 +15,18 @@ public class MessageDto
     public bool IsEdited { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? EditedAt { get; set; }
+    public Guid? ParentMessageId { get; set; }
+    public string? ParentMessageContent { get; set; }
+    public string? ParentMessageSender { get; set; }
+    public bool IsPinned { get; set; }
+    public List<MessageReactionDto> Reactions { get; set; } = new List<MessageReactionDto>();
+}
+
+public class MessageReactionDto
+{
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string ReactionType { get; set; } = string.Empty;
 }
 
 public class JoinRequestDto
@@ -65,4 +77,19 @@ public class ChangePasswordDto
 {
     public string CurrentPassword { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
+}
+
+public class FriendDto
+{
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public bool IsOnline { get; set; }
+    public bool IsPending { get; set; }
+    public bool IsIncoming { get; set; } // True nếu mình là người nhận, False nếu mình là người gửi
+}
+
+public class BlockedUserDto
+{
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
 }
