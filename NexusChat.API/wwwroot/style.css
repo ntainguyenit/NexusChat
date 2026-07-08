@@ -254,6 +254,22 @@ body {
     align-items: center;
 }
 
+.dropdown-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.dropdown-item:hover {
+    background-color: var(--bg-hover);
+}
+
 .current-user {
     display: flex;
     align-items: center;
@@ -376,7 +392,9 @@ body {
     border-radius: 12px;
     font-size: 0.95rem;
     line-height: 1.4;
-    word-break: break-word;
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .message.sent .message-bubble {
@@ -453,8 +471,21 @@ body {
 }
 .modal-content h3 { margin-bottom: 1rem; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
-.btn-secondary { background: var(--border); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-.btn-primary.small { padding: 0.5rem 1rem; width: auto; }
+.btn-secondary { 
+    background: var(--border); 
+    color: var(--text-main);
+    border: none; 
+    padding: 0.5rem 1rem; 
+    border-radius: 6px; 
+    font-weight: 500;
+    cursor: pointer; 
+    transition: background 0.2s;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: normal;
+}
+.btn-secondary:hover { background: #d1d5db; }
+.btn-primary.small { padding: 0.5rem 1rem; width: auto; font-family: inherit; font-size: 1rem; line-height: normal; border-radius: 6px; }
 
 /* Typing & Read Receipts */
 .typing-indicator {
@@ -719,6 +750,7 @@ body {
     display: flex;
     align-items: center;
     max-width: 80%;
+    width: max-content;
 }
 
 .msg-menu-btn {
@@ -906,14 +938,11 @@ body {
     gap: 6px;
 }
 
-.settings-section .btn-primary {
-    margin-top: 0.5rem;
-}
 /* Tabs */
 .sidebar-tabs {
     display: flex;
     gap: 8px;
-    margin-bottom: 15px;
+    margin-bottom: 0;
 }
 
 .tab-btn {
@@ -926,6 +955,11 @@ body {
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 .tab-btn.active {

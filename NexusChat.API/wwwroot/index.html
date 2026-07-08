@@ -60,12 +60,22 @@
                 <ul class="conversation-list" id="friend-list" style="display: none;">
                     <!-- Friends -->
                 </ul>
-                <div class="sidebar-footer">
-                    <div class="current-user" onclick="document.getElementById('settings-modal').classList.add('active')" style="cursor: pointer;">
+                <div class="sidebar-footer" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                    <div class="current-user" style="cursor: default; width: 100%; margin-bottom: 5px;">
                         <div class="avatar small"><i class="fa-solid fa-user"></i></div>
                         <span id="current-username">Người dùng</span>
                     </div>
-                    <button class="icon-btn text-icon" id="logout-btn" title="Đăng xuất"><i class="fa-solid fa-right-from-bracket"></i> Thoát</button>
+                    <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; position: relative;">
+                        <button class="icon-btn text-icon" id="settings-dropdown-btn" title="Cài đặt" onclick="toggleSettingsMenu(event)" style="justify-content: flex-start; padding-left: 0;">
+                            <i class="fa-solid fa-gear"></i> Cài đặt
+                        </button>
+                        <div id="settings-dropdown-menu" style="display: none; position: absolute; bottom: 100%; left: 0; background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.1); padding: 5px 0; min-width: 160px; z-index: 100;">
+                            <div class="dropdown-item" onclick="openSettingsTab('profile')"><i class="fa-solid fa-user"></i> Hồ sơ</div>
+                            <div class="dropdown-item" onclick="openSettingsTab('password')"><i class="fa-solid fa-lock"></i> Đổi mật khẩu</div>
+                            <div class="dropdown-item" onclick="openSettingsTab('blocked')"><i class="fa-solid fa-ban"></i> Danh sách chặn</div>
+                        </div>
+                        <button class="icon-btn text-icon" id="logout-btn" title="Đăng xuất" style="justify-content: flex-start; padding-left: 0;"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</button>
+                    </div>
                 </div>
             </aside>
 
@@ -77,15 +87,15 @@
                         <span class="status-indicator online" title="Online" id="active-chat-status"></span>
                     </div>
                     <div class="chat-actions">
-                        <div class="message-search-bar" id="message-search-bar" style="display: none; margin-right: 10px;">
-                            <input type="text" id="message-search-input" placeholder="Tìm kiếm..." style="padding: 4px 8px; border-radius: 12px; border: 1px solid #ccc;">
+                        <div class="message-search-bar" id="message-search-bar" style="display: flex; align-items: center; margin-right: 10px;">
+                            <input type="text" id="message-search-input" placeholder="Tìm kiếm..." style="padding: 4px 8px; border-radius: 12px; border: 1px solid #ccc; outline: none; margin: 0;">
                         </div>
-                        <button class="icon-btn text-icon" title="Xem mã tham gia" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i> Mã</button>
-                        <button class="icon-btn text-icon" title="Thành viên" id="members-btn" style="display: none;"><i class="fa-solid fa-users"></i> Nhóm</button>
+                        <button class="icon-btn" title="Tìm kiếm" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <button class="icon-btn text-icon" title="Xem mã tham gia" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i> Mã nhóm</button>
+                        <button class="icon-btn text-icon" title="Thành viên" id="members-btn" style="display: none;"><i class="fa-solid fa-users"></i> Thành viên</button>
                         <button class="icon-btn text-icon" title="Yêu cầu tham gia" id="pending-requests-btn" style="display: none; position: relative;"><i class="fa-solid fa-bell"></i> Yêu cầu <span id="pending-badge" class="pending-badge" style="display: none;">0</span></button>
                         <button class="icon-btn text-icon" title="Ghim tin nhắn" id="pinned-messages-btn" style="display: none;"><i class="fa-solid fa-thumbtack"></i> Ghim</button>
-                        <button class="icon-btn text-icon" title="Đổi tên nhóm" id="rename-group-btn" style="display: none;"><i class="fa-solid fa-pen"></i> Đổi tên</button>
-                        <button class="icon-btn" title="Tìm kiếm" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <button class="icon-btn text-icon" title="Đổi tên nhóm" id="rename-group-btn" style="display: none;"><i class="fa-solid fa-pen"></i> Đổi tên nhóm</button>
                         <button class="icon-btn" title="Thêm/Xóa Bạn" id="friend-toggle-btn" style="display: none;"><i class="fa-solid fa-user-plus"></i></button>
                         <button class="icon-btn" title="Chặn/Bỏ chặn" id="block-toggle-btn" style="display: none; color: #e74c3c;"><i class="fa-solid fa-ban"></i></button>
                         <button class="icon-btn text-icon" title="Rời nhóm" id="leave-group-btn" style="display: none; color: #e67e22;"><i class="fa-solid fa-right-from-bracket"></i> Rời</button>
@@ -157,7 +167,6 @@
         <div class="modal-content" style="max-width: 480px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h3 style="margin-bottom: 0;"><i class="fa-solid fa-gear" style="color: var(--primary); margin-right: 8px;"></i>Cài đặt</h3>
-                <button class="icon-btn" onclick="document.getElementById('settings-modal').classList.remove('active')" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
             
             <div class="settings-section">
@@ -170,7 +179,10 @@
                     <label for="setting-email">Email</label>
                     <input type="email" id="setting-email" placeholder="Email">
                 </div>
-                <button class="btn-primary small" id="save-profile-btn"><i class="fa-solid fa-floppy-disk"></i> Lưu hồ sơ</button>
+                <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                    <button class="btn-primary small" id="save-profile-btn"><i class="fa-solid fa-floppy-disk"></i> Lưu hồ sơ</button>
+                    <button class="btn-secondary small" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
+                </div>
             </div>
             
             <hr style="border: none; border-top: 1px solid var(--border); margin: 1.2rem 0;">
@@ -189,7 +201,10 @@
                     <label for="confirm-password">Xác nhận mật khẩu mới</label>
                     <input type="password" id="confirm-password" placeholder="Xác nhận mật khẩu">
                 </div>
-                <button class="btn-primary small" id="save-password-btn"><i class="fa-solid fa-key"></i> Đổi mật khẩu</button>
+                <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                    <button class="btn-primary small" id="save-password-btn"><i class="fa-solid fa-key"></i> Đổi mật khẩu</button>
+                    <button class="btn-secondary small" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
+                </div>
             </div>
 
             <hr style="border: none; border-top: 1px solid var(--border); margin: 1.2rem 0;">
@@ -199,10 +214,9 @@
                 <div id="blocked-users-list" class="pending-requests-list">
                     <!-- Danh sách người bị chặn -->
                 </div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
+                <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                    <button class="btn-secondary small" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
+                </div>
             </div>
         </div>
     </div>

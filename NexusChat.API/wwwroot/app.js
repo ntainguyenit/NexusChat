@@ -63,7 +63,8 @@ loginForm.addEventListener('submit', async (e) => {
     }
 });
 
-logoutBtn.addEventListener('click', () => {
+logoutBtn.addEventListener('click', async () => {
+    if (!await customConfirm('Bạn có chắc chắn muốn đăng xuất không?', 'Thoát tài khoản')) return;
     if (hubConnection) {
         hubConnection.stop();
     }
@@ -374,11 +375,14 @@ async function startSignalR() {
     hubConnection.on("ReceiveMessage", (message) => {
         const isFromActive = message.senderId === activeReceiverId || message.conversationId === activeReceiverId;
         const isFromMe = message.senderId === currentUser.id;
+        const isSystem = message.content && message.content.startsWith('[SYSTEM]');
         
-        if (isFromActive && !isFromMe) {
-            appendMessage(message.content, false, null, message.id, false, false, false, message.senderId, message.quote, message.reactions, message.isPinned);
-            if (document.visibilityState === 'visible') {
-                hubConnection.invoke("MarkAsRead", message.id).catch(console.error);
+        if (isFromActive) {
+            if (!isFromMe || isSystem) {
+                appendMessage(message.content, false, null, message.id, false, false, false, message.senderId, message.quote, message.reactions, message.isPinned);
+                if (!isFromMe && document.visibilityState === 'visible') {
+                    hubConnection.invoke("MarkAsRead", message.id).catch(console.error);
+                }
             }
         } else if (!isFromActive && !isFromMe) {
             console.log(`New message from ${message.senderName}`);
@@ -423,18 +427,6 @@ async function startSignalR() {
     });
 
     hubConnection.on("JoinRequestReceived", (request) => {
-        // Show toast with approve/deny buttons — does NOT auto-close (duration = 0)
-        const toastHtml = `
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i class="fa-solid fa-user-plus" style="color: var(--primary); font-size: 1.1rem;"></i>
-                <span><b>${request.requesterName}</b> muốn tham gia <b>${request.groupName}</b></span>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button class="btn-primary small" onclick="reviewJoinRequest('${request.conversationId}', '${request.requesterId}', true, this)"><i class="fa-solid fa-check"></i> Chấp nhận</button>
-                <button class="btn-secondary small" style="color: #e74c3c;" onclick="reviewJoinRequest('${request.conversationId}', '${request.requesterId}', false, this)"><i class="fa-solid fa-xmark"></i> Từ chối</button>
-            </div>
-        `;
-        showToast(toastHtml, "", 0); // Never auto-close
         // Update badge count
         updatePendingBadge();
     });
@@ -890,22 +882,14 @@ function openRenameModal(conversationId, currentName) {
 }
 
 // Modals
-document.querySelector('.icon-btn[title="Settings"]').addEventListener('click', () => {
-    document.getElementById('setting-username').value = currentUser.userName;
-    document.getElementById('setting-email').value = currentUser.email;
-    document.getElementById('settings-modal').classList.add('active');
-});
-
-// Removed unused New Conversation block
-
-document.querySelector('.icon-btn[title="New Group"]').addEventListener('click', () => {
+function openCreateGroupModal() {
     document.getElementById('group-name').value = '';
     document.getElementById('group-name-group').style.display = 'block';
     document.getElementById('group-modal-footer').style.display = 'flex';
     document.getElementById('group-code-display').style.display = 'none';
-    document.getElementById('group-modal-title').textContent = 'New Group';
+    document.getElementById('group-modal-title').innerHTML = '<i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i>Tạo nhóm mới';
     document.getElementById('group-modal').classList.add('active');
-});
+}
 
 function closeGroupModal() {
     document.getElementById('group-modal').classList.remove('active');
@@ -913,11 +897,31 @@ function closeGroupModal() {
 
 document.getElementById('copy-code-btn').addEventListener('click', () => {
     const code = document.getElementById('new-group-code').textContent;
-    navigator.clipboard.writeText(code);
+    let success = false;
+    
+    // Cách 1: Thử dùng execCommand đồng bộ trước (hoạt động tốt cho HTTP)
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.style.position = 'fixed'; 
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+    } catch (err) {
+        console.error('Lỗi execCommand:', err);
+    }
+
+    // Cách 2: Nếu thất bại, thử dùng Clipboard API
+    if (!success && navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code).catch(e => console.error(e));
+    }
+
     const btn = document.getElementById('copy-code-btn');
-    btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Đã chép!';
     setTimeout(() => {
-        btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Code';
+        btn.innerHTML = '<i class="fa-solid fa-copy"></i> Sao chép mã';
     }, 2000);
 });
 
@@ -959,7 +963,7 @@ document.getElementById('create-group-btn').addEventListener('click', async () =
 
 // Join Group
 document.getElementById('join-group-btn').addEventListener('click', async () => {
-    const code = document.getElementById('join-code').value.trim();
+    const code = document.getElementById('join-code').value.trim().toUpperCase();
     if (!code) { await customAlert("Vui lòng nhập mã tham gia"); return; }
     
     try {
@@ -1137,14 +1141,7 @@ const messageSearchBar = document.getElementById('message-search-bar');
 const messageSearchInput = document.getElementById('message-search-input');
 
 toggleSearchBtn.addEventListener('click', () => {
-    if (messageSearchBar.style.display === 'none') {
-        messageSearchBar.style.display = 'block';
-        messageSearchInput.focus();
-    } else {
-        messageSearchBar.style.display = 'none';
-        messageSearchInput.value = '';
-        messageSearchInput.dispatchEvent(new Event('input')); // Reset filter
-    }
+    messageSearchInput.focus();
 });
 
 messageSearchInput.addEventListener('input', (e) => {
@@ -1213,10 +1210,66 @@ document.getElementById('save-password-btn')?.addEventListener('click', async ()
 });
 
 
+// --- Settings Dropdown & Tabs ---
+function toggleSettingsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('settings-dropdown-menu');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function openSettingsTab(tab) {
+    // Hide dropdown
+    document.getElementById('settings-dropdown-menu').style.display = 'none';
+    
+    // Open settings modal
+    document.getElementById('settings-modal').classList.add('active');
+    
+    const modalContent = document.querySelector('#settings-modal .modal-content');
+    const sections = modalContent.querySelectorAll('.settings-section');
+    const hrs = modalContent.querySelectorAll('hr');
+    const title = modalContent.querySelector('h3');
+    
+    // Hide all hrs
+    hrs.forEach(hr => hr.style.display = 'none');
+    
+    // Hide all sections and their inner h4 titles
+    sections.forEach(s => {
+        s.style.display = 'none';
+        const h4 = s.querySelector('h4');
+        if (h4) h4.style.display = 'none';
+    });
+    
+    if (tab === 'profile' && sections[0]) {
+        title.innerHTML = '<i class="fa-solid fa-user" style="color: var(--primary); margin-right: 8px;"></i>Hồ sơ';
+        document.getElementById('setting-username').value = currentUser.userName;
+        document.getElementById('setting-email').value = currentUser.email;
+        sections[0].style.display = 'block';
+    } else if (tab === 'password' && sections[1]) {
+        title.innerHTML = '<i class="fa-solid fa-lock" style="color: var(--primary); margin-right: 8px;"></i>Đổi mật khẩu';
+        sections[1].style.display = 'block';
+    } else if (tab === 'blocked' && sections[2]) {
+        title.innerHTML = '<i class="fa-solid fa-ban" style="color: var(--primary); margin-right: 8px;"></i>Danh sách chặn';
+        sections[2].style.display = 'block';
+    }
+}
+
+window.addEventListener('click', (e) => {
+    const menu = document.getElementById('settings-dropdown-menu');
+    const btn = document.getElementById('settings-dropdown-btn');
+    if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+    
+    // Đóng modal khi click ra ngoài vùng modal-content
+    if (e.target.classList.contains('modal')) {
+        e.target.classList.remove('active');
+    }
+});
+
 // --- Custom Modals ---
 function customAlert(message, title = 'Thông báo') {
     return new Promise(resolve => {
-        document.getElementById('confirm-title').innerHTML = `<i class="fa-solid fa-circle-info"></i> ${title}`;
+        document.getElementById('confirm-title').innerHTML = title;
         document.getElementById('confirm-message').innerHTML = message;
         document.getElementById('confirm-cancel-btn').style.display = 'none';
         
@@ -1235,7 +1288,7 @@ function customAlert(message, title = 'Thông báo') {
 
 function customConfirm(message, title = 'Xác nhận') {
     return new Promise(resolve => {
-        document.getElementById('confirm-title').innerHTML = `<i class="fa-solid fa-circle-question"></i> ${title}`;
+        document.getElementById('confirm-title').innerHTML = title;
         document.getElementById('confirm-message').innerHTML = message;
         document.getElementById('confirm-cancel-btn').style.display = 'inline-block';
         
