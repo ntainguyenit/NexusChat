@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <div id="app-container">
@@ -14,22 +15,27 @@
         <div id="login-view" class="view active">
             <div class="login-card">
                 <div class="brand">
-                    <i class="fa-solid fa-bolt brand-icon"></i>
+                    <i class="fa-solid fa-comments brand-icon"></i>
                     <h1>NexusChat</h1>
                 </div>
-                <p class="subtitle">Nhập thông tin đăng nhập để tiếp tục</p>
-                <form id="login-form">
-                    <div class="form-group">
-                        <label for="username">Tên người dùng</label>
-                        <input type="text" id="username" value="alice" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="password">Mật khẩu</label>
-                        <input type="password" id="password" value="Pa$$w0rd" required>
-                    </div>
-                    <button type="submit" class="btn-primary" id="login-btn"><i class="fa-solid fa-right-to-bracket"></i> Đăng nhập</button>
-                    <p id="login-error" class="error-msg"></p>
-                </form>
+                <p class="subtitle">Vui lòng đăng nhập để tiếp tục</p>
+                <div id="g_id_onload"
+                     data-client_id="704712707286-tf1ojl4dc97b4vqf0gnv6rijoat9nlfe.apps.googleusercontent.com"
+                     data-context="signin"
+                     data-ux_mode="popup"
+                     data-callback="handleCredentialResponse"
+                     data-auto_prompt="false">
+                </div>
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-shape="rectangular"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="left"
+                     style="display: flex; justify-content: center; margin-top: 20px;">
+                </div>
+                <p id="login-error" class="error-msg" style="text-align: center; margin-top: 15px;"></p>
             </div>
         </div>
 
@@ -50,7 +56,7 @@
                         <button class="icon-btn" title="Thêm bạn" onclick="document.getElementById('add-friend-modal').classList.add('active')"><i class="fa-solid fa-user-plus"></i></button>
                     </div>
                 </div>
-                <div class="search-bar">
+                <div class="search-bar" id="main-search-bar">
                     <i class="fa-solid fa-search"></i>
                     <input type="text" placeholder="Tìm kiếm...">
                 </div>
@@ -61,9 +67,12 @@
                     <!-- Friends -->
                 </ul>
                 <div class="sidebar-footer" style="flex-direction: column; align-items: flex-start; gap: 10px;">
-                    <div class="current-user" style="cursor: default; width: 100%; margin-bottom: 5px;">
-                        <div class="avatar small"><i class="fa-solid fa-user"></i></div>
-                        <span id="current-username">Người dùng</span>
+                    <div class="current-user" style="cursor: default; width: 100%; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="avatar small"><i class="fa-solid fa-user"></i></div>
+                            <span id="current-username">Người dùng</span>
+                        </div>
+                        <button class="icon-btn" title="Thông báo" id="pending-requests-btn" style="position: relative; padding: 5px;"><i class="fa-solid fa-bell"></i> <span id="pending-badge" class="pending-badge" style="display: none; top: -5px; right: -5px;">0</span></button>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; position: relative;">
                         <button class="icon-btn text-icon" id="settings-dropdown-btn" title="Cài đặt" onclick="toggleSettingsMenu(event)" style="justify-content: flex-start; padding-left: 0;">
@@ -71,7 +80,6 @@
                         </button>
                         <div id="settings-dropdown-menu" style="display: none; position: absolute; bottom: 100%; left: 0; background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.1); padding: 5px 0; min-width: 160px; z-index: 100;">
                             <div class="dropdown-item" onclick="openSettingsTab('profile')"><i class="fa-solid fa-user"></i> Hồ sơ</div>
-                            <div class="dropdown-item" onclick="openSettingsTab('password')"><i class="fa-solid fa-lock"></i> Đổi mật khẩu</div>
                             <div class="dropdown-item" onclick="openSettingsTab('blocked')"><i class="fa-solid fa-ban"></i> Danh sách chặn</div>
                         </div>
                         <button class="icon-btn text-icon" id="logout-btn" title="Đăng xuất" style="justify-content: flex-start; padding-left: 0;"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</button>
@@ -93,7 +101,7 @@
                         <button class="icon-btn" title="Tìm kiếm" id="toggle-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
                         <button class="icon-btn text-icon" title="Xem mã tham gia" id="view-code-btn" style="display: none;"><i class="fa-solid fa-qrcode"></i> Mã nhóm</button>
                         <button class="icon-btn text-icon" title="Thành viên" id="members-btn" style="display: none;"><i class="fa-solid fa-users"></i> Thành viên</button>
-                        <button class="icon-btn text-icon" title="Yêu cầu tham gia" id="pending-requests-btn" style="display: none; position: relative;"><i class="fa-solid fa-bell"></i> Yêu cầu <span id="pending-badge" class="pending-badge" style="display: none;">0</span></button>
+
                         <button class="icon-btn text-icon" title="Ghim tin nhắn" id="pinned-messages-btn" style="display: none;"><i class="fa-solid fa-thumbtack"></i> Ghim</button>
                         <button class="icon-btn text-icon" title="Đổi tên nhóm" id="rename-group-btn" style="display: none;"><i class="fa-solid fa-pen"></i> Đổi tên nhóm</button>
                         <button class="icon-btn" title="Thêm/Xóa Bạn" id="friend-toggle-btn" style="display: none;"><i class="fa-solid fa-user-plus"></i></button>
@@ -150,15 +158,17 @@
 
     <!-- Add Friend Modal -->
     <div id="add-friend-modal" class="modal">
-        <div class="modal-content" style="max-width: 400px;">
-            <h3><i class="fa-solid fa-user-plus" style="color: var(--primary); margin-right: 8px;"></i>Thêm bạn bè</h3>
-            <div class="form-group">
-                <label>Tên người dùng</label>
-                <input type="text" id="friend-username-input" placeholder="Nhập tên người dùng...">
+        <div class="modal-content" style="max-width: 450px;">
+            <h3><i class="fa-solid fa-user-plus" style="color: var(--primary); margin-right: 8px;"></i>Tìm kiếm bạn bè</h3>
+            <div class="form-group" style="position: relative;">
+                <i class="fa-solid fa-search" style="position: absolute; left: 15px; top: 12px; color: var(--text-muted);"></i>
+                <input type="text" id="friend-search-input" placeholder="Nhập tên hoặc gmail để tìm kiếm..." style="padding-left: 40px;" autocomplete="off">
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('add-friend-modal').classList.remove('active')">Hủy</button>
-                <button class="btn-primary small" id="send-friend-request-btn">Gửi yêu cầu</button>
+            <div id="friend-search-results" style="max-height: 250px; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 20px 0;"><i class="fa-solid fa-keyboard"></i> Gõ ít nhất 2 ký tự để tìm kiếm</p>
+            </div>
+            <div class="modal-footer" style="margin-top: 15px;">
+                <button class="btn-secondary" onclick="document.getElementById('add-friend-modal').classList.remove('active')">Đóng</button>
             </div>
         </div>
     </div>
@@ -176,8 +186,8 @@
                     <input type="text" id="setting-username" placeholder="Username">
                 </div>
                 <div class="form-group">
-                    <label for="setting-email">Email</label>
-                    <input type="email" id="setting-email" placeholder="Email">
+                    <label for="setting-email">Gmail</label>
+                    <input type="email" id="setting-email" placeholder="Email" readonly style="background-color: var(--bg-sidebar); cursor: not-allowed; color: var(--text-muted);" title="Email liên kết với Google không thể thay đổi">
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 1rem;">
                     <button class="btn-primary small" id="save-profile-btn"><i class="fa-solid fa-floppy-disk"></i> Lưu hồ sơ</button>
@@ -185,28 +195,6 @@
                 </div>
             </div>
             
-            <hr style="border: none; border-top: 1px solid var(--border); margin: 1.2rem 0;">
-            
-            <div class="settings-section">
-                <h4><i class="fa-solid fa-lock"></i> Đổi mật khẩu</h4>
-                <div class="form-group">
-                    <label for="current-password">Mật khẩu hiện tại</label>
-                    <input type="password" id="current-password" placeholder="Mật khẩu hiện tại">
-                </div>
-                <div class="form-group">
-                    <label for="new-password">Mật khẩu mới</label>
-                    <input type="password" id="new-password" placeholder="Mật khẩu mới">
-                </div>
-                <div class="form-group">
-                    <label for="confirm-password">Xác nhận mật khẩu mới</label>
-                    <input type="password" id="confirm-password" placeholder="Xác nhận mật khẩu">
-                </div>
-                <div style="display: flex; gap: 10px; margin-top: 1rem;">
-                    <button class="btn-primary small" id="save-password-btn"><i class="fa-solid fa-key"></i> Đổi mật khẩu</button>
-                    <button class="btn-secondary small" onclick="document.getElementById('settings-modal').classList.remove('active')">Đóng</button>
-                </div>
-            </div>
-
             <hr style="border: none; border-top: 1px solid var(--border); margin: 1.2rem 0;">
 
             <div class="settings-section">
@@ -258,7 +246,7 @@
     <div id="pending-requests-modal" class="modal">
         <div class="modal-content" style="max-width: 480px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3 style="margin-bottom: 0;"><i class="fa-solid fa-user-clock" style="color: var(--primary); margin-right: 8px;"></i>Yêu cầu tham gia</h3>
+                <h3 style="margin-bottom: 0;"><i class="fa-solid fa-user-clock" style="color: var(--primary); margin-right: 8px;"></i>Yêu cầu kết bạn</h3>
                 <button class="icon-btn" onclick="document.getElementById('pending-requests-modal').classList.remove('active')" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div id="pending-requests-list" class="pending-requests-list"></div>

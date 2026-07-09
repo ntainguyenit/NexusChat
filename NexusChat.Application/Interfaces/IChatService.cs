@@ -34,7 +34,7 @@ public interface IChatService
     Task<bool> RenameGroupAsync(Guid conversationId, Guid adminId, string newName);
 
     // Friends
-    Task<bool> SendFriendRequestAsync(Guid userId, string friendUserName);
+    Task<(bool, Guid?)> SendFriendRequestAsync(Guid userId, string friendEmail);
     Task<bool> AcceptFriendRequestAsync(Guid userId, Guid friendId);
     Task<bool> RejectFriendRequestAsync(Guid userId, Guid friendId);
     Task<bool> RemoveFriendAsync(Guid userId, Guid friendId);

@@ -6,6 +6,7 @@ using NexusChat.Application.DTOs;
 using NexusChat.Application.Interfaces;
 using NexusChat.Domain.Entities;
 using NexusChat.Infrastructure.Data;
+using Google.Apis.Auth;
 
 namespace NexusChat.API.Controllers;
 
@@ -30,65 +31,60 @@ public class AuthController : ControllerBase
         _connectionManager = connectionManager;
     }
 
-    [HttpPost("register")]
-    public async Task<ActionResult<AuthResultDto>> Register(RegisterDto dto)
+    [HttpPost("google-login")]
+    public async Task<ActionResult<AuthResultDto>> GoogleLogin([FromBody] GoogleLoginDto dto)
     {
-        if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
-            return BadRequest("Username is already taken");
-
-        if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
-            return BadRequest("Email is already registered");
-
-        var user = new User
+        try
         {
-            UserName = dto.UserName,
-            Email = dto.Email
-        };
+            var payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken);
+            
+            // Email is required
+            if (string.IsNullOrEmpty(payload.Email))
+                return BadRequest("Google token does not contain email.");
 
-        user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
-
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        var token = _tokenService.CreateToken(user);
-
-        return Ok(new AuthResultDto
-        {
-            Token = token,
-            User = new UserDto
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == payload.Email);
+            
+            if (user == null)
             {
-                Id = user.Id,
-                UserName = user.UserName,
-                Email = user.Email
+                // Create new user
+                user = new User
+                {
+                    Email = payload.Email,
+                    // We use the email name or google name as default username
+                    UserName = !string.IsNullOrEmpty(payload.Name) ? payload.Name : payload.Email.Split('@')[0],
+                    PasswordHash = string.Empty // No password for google accounts
+                };
+                
+                // Ensure unique username if needed (basic handling)
+                int suffix = 1;
+                var baseUserName = user.UserName;
+                while (await _context.Users.AnyAsync(u => u.UserName == user.UserName))
+                {
+                    user.UserName = $"{baseUserName}{suffix}";
+                    suffix++;
+                }
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
             }
-        });
-    }
 
-    [HttpPost("login")]
-    public async Task<ActionResult<AuthResultDto>> Login(LoginDto dto)
-    {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == dto.UserName);
+            var token = _tokenService.CreateToken(user);
 
-        if (user == null)
-            return Unauthorized("Invalid username or password");
-
-        var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
-        
-        if (result == PasswordVerificationResult.Failed)
-            return Unauthorized("Invalid username or password");
-
-        var token = _tokenService.CreateToken(user);
-
-        return Ok(new AuthResultDto
-        {
-            Token = token,
-            User = new UserDto
+            return Ok(new AuthResultDto
             {
-                Id = user.Id,
-                UserName = user.UserName,
-                Email = user.Email
-            }
-        });
+                Token = token,
+                User = new UserDto
+                {
+                    Id = user.Id,
+                    UserName = user.UserName,
+                    Email = user.Email
+                }
+            });
+        }
+        catch (InvalidJwtException)
+        {
+            return Unauthorized("Invalid Google token.");
+        }
     }
 
     [HttpGet("users")]
@@ -110,6 +106,33 @@ public class AuthController : ControllerBase
         return Ok(users);
     }
 
+    [HttpGet("search")]
+    public async Task<ActionResult<IEnumerable<UserDto>>> SearchUsers([FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+            return Ok(new List<UserDto>());
+
+        var currentUserIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var currentUserId = Guid.Parse(currentUserIdStr!);
+        
+        var existingFriendIds = await _context.Friendships
+            .Where(f => f.UserId == currentUserId || f.FriendId == currentUserId)
+            .Select(f => f.UserId == currentUserId ? f.FriendId : f.UserId)
+            .ToListAsync();
+        
+        var users = await _context.Users
+            .Where(u => u.Id != currentUserId && !existingFriendIds.Contains(u.Id) && (u.UserName.Contains(query) || u.Email.Contains(query)))
+            .Take(10)
+            .Select(u => new UserDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                Email = u.Email
+            }).ToListAsync();
+            
+        return Ok(users);
+    }
+
     [Authorize]
     [HttpPut("profile")]
     public async Task<ActionResult<UserDto>> UpdateProfile([FromBody] UpdateProfileDto dto)
@@ -121,22 +144,21 @@ public class AuthController : ControllerBase
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return NotFound();
 
-        // Check uniqueness
+        // Check uniqueness for UserName only
         if (dto.UserName != user.UserName && await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
             return BadRequest("Username is already taken");
-        
-        if (dto.Email != user.Email && await _context.Users.AnyAsync(u => u.Email == dto.Email))
-            return BadRequest("Email is already registered");
 
         user.UserName = dto.UserName;
-        user.Email = dto.Email;
+        // Do NOT allow updating Email since it's linked to Google Account
+        // user.Email = dto.Email; 
+        
         await _context.SaveChangesAsync();
 
         return Ok(new UserDto
         {
             Id = user.Id,
             UserName = user.UserName,
-            Email = user.Email
+            Email = user.Email // Return the original email
         });
     }
 

@@ -26,3 +26,8 @@ public class UserDto
     public string Email { get; set; } = string.Empty;
     public bool IsOnline { get; set; }
 }
+
+public class GoogleLoginDto
+{
+    public string IdToken { get; set; } = string.Empty;
+}

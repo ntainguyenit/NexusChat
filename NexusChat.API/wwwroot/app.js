@@ -29,18 +29,15 @@ let pinnedMessageId = null;
 const API_BASE = '/api';
 
 // --- Auth ---
-loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    
+// --- Google Auth ---
+async function handleCredentialResponse(response) {
     loginError.textContent = '';
     
     try {
-        const res = await fetch(`${API_BASE}/Auth/login`, {
+        const res = await fetch(`${API_BASE}/Auth/google-login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ idToken: response.credential })
         });
         
         if (!res.ok) {
@@ -61,7 +58,7 @@ loginForm.addEventListener('submit', async (e) => {
     } catch (err) {
         loginError.textContent = err.message;
     }
-});
+}
 
 logoutBtn.addEventListener('click', async () => {
     if (!await customConfirm('Bạn có chắc chắn muốn đăng xuất không?', 'Thoát tài khoản')) return;
@@ -91,6 +88,8 @@ tabChats?.addEventListener('click', () => {
     if(friendListUl) friendListUl.style.display = 'none';
     if(chatActionsBar) chatActionsBar.style.display = 'flex';
     if(friendActionsBar) friendActionsBar.style.display = 'none';
+    const mainSearchBar = document.getElementById('main-search-bar');
+    if(mainSearchBar) mainSearchBar.style.display = 'flex';
 });
 
 tabFriends?.addEventListener('click', async () => {
@@ -101,6 +100,8 @@ tabFriends?.addEventListener('click', async () => {
     if(friendListUl) friendListUl.style.display = 'block';
     if(chatActionsBar) chatActionsBar.style.display = 'none';
     if(friendActionsBar) friendActionsBar.style.display = 'flex';
+    const mainSearchBar = document.getElementById('main-search-bar');
+    if(mainSearchBar) mainSearchBar.style.display = 'none';
     await fetchFriends();
 });
 
@@ -123,13 +124,13 @@ function renderFriends() {
         li.innerHTML = `
             <div class="avatar"><i class="fa-solid fa-user"></i></div>
             <div class="conv-details">
-                <span class="conv-name">${escapeHtml(f.friendName)} ${f.isOnline ? '<span class="status-indicator online" style="display:inline-block; margin-left: 5px;"></span>' : ''}</span>
+                <span class="conv-name">${escapeHtml(f.userName)} ${f.isOnline ? '<span class="status-indicator online" style="display:inline-block; margin-left: 5px;"></span>' : ''}</span>
                 <span class="conv-last-msg">Bạn bè</span>
             </div>
-            <button class="icon-btn" onclick="removeFriend('${f.friendId}', event)" style="z-index:10;"><i class="fa-solid fa-user-minus"></i></button>
+            <button class="icon-btn" onclick="removeFriend('${f.userId}', event)" style="z-index:10;"><i class="fa-solid fa-user-minus"></i></button>
         `;
         li.addEventListener('click', () => {
-            selectUser({ id: f.friendId, userName: f.friendName, isGroup: false, isOnline: f.isOnline });
+            selectUser({ id: f.userId, userName: f.userName, isGroup: false, isOnline: f.isOnline });
         });
         friendListUl.appendChild(li);
     });
@@ -140,12 +141,101 @@ window.removeFriend = async (id, e) => {
     if(!await customConfirm('Xóa bạn bè?')) return;
     await fetch(`/api/Friends/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
     fetchFriends();
+    fetchUsers();
 };
 
 window.addFriend = async (id) => {
-    if(!await customConfirm('Thêm bạn bè?')) return;
+    // This adds by ID directly
     await fetch('/api/Friends', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ friendId: id })});
-    customAlert('Đã gửi kết bạn!');
+    fetchFriends();
+}
+
+// Add friend by Search
+const friendSearchInput = document.getElementById('friend-search-input');
+const friendSearchResults = document.getElementById('friend-search-results');
+let searchTimeout;
+
+if (friendSearchInput) {
+    friendSearchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+            friendSearchResults.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 20px 0;"><i class="fa-solid fa-keyboard"></i> Gõ ít nhất 2 ký tự để tìm kiếm</p>';
+            return;
+        }
+
+        friendSearchResults.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px 0;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tìm...</p>';
+
+        searchTimeout = setTimeout(async () => {
+            try {
+                const res = await fetch(`${API_BASE}/Auth/search?query=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    cache: 'no-store'
+                });
+                
+                if (res.ok) {
+                    const users = await res.json();
+                    
+                    if (users.length === 0) {
+                        friendSearchResults.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px 0;">Không tìm thấy kết quả nào</p>';
+                        return;
+                    }
+                    
+                    // Lọc những người đã là bạn bè (hoặc không cần thiết vì backend có thể xử lý, nhưng frontend dễ filter hơn)
+                    // Ở đây backend đã lọc user hiện tại, ta có thể lọc thêm friends hiện tại nếu cần.
+                    const friendIds = friendsList.map(f => f.userId);
+                    const results = users.filter(u => !friendIds.includes(u.id));
+                    
+                    if (results.length === 0) {
+                        friendSearchResults.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px 0;">Các kết quả đều đã là bạn bè</p>';
+                        return;
+                    }
+
+                    friendSearchResults.innerHTML = '';
+                    results.forEach(u => {
+                        const item = document.createElement('div');
+                        item.className = 'search-result-item';
+                        item.innerHTML = `
+                            <div class="search-result-info">
+                                <div class="avatar small" style="background-color: var(--primary); color: white;"><i class="fa-solid fa-user"></i></div>
+                                <div>
+                                    <span class="search-result-name">${escapeHtml(u.userName)}</span>
+                                    <span class="search-result-email">${escapeHtml(u.email)}</span>
+                                </div>
+                            </div>
+                            <button class="btn-primary small" onclick="sendFriendRequestFromSearch('${escapeHtml(u.email)}')"><i class="fa-solid fa-user-plus"></i></button>
+                        `;
+                        friendSearchResults.appendChild(item);
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+                friendSearchResults.innerHTML = '<p style="text-align: center; color: var(--danger); padding: 20px 0;">Lỗi khi tìm kiếm</p>';
+            }
+        }, 500); // debounce 500ms
+    });
+}
+
+window.sendFriendRequestFromSearch = async (email) => {
+    try {
+        const res = await fetch(`${API_BASE}/Friends/request/${encodeURIComponent(email)}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+            showToast(`<i class="fa-solid fa-check" style="color: #2ecc71;"></i> <b>Đã gửi lời mời kết bạn!</b>`, '');
+            document.getElementById('add-friend-modal').classList.remove('active');
+            if(friendSearchInput) friendSearchInput.value = '';
+            if(friendSearchResults) friendSearchResults.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 20px 0;"><i class="fa-solid fa-keyboard"></i> Gõ ít nhất 2 ký tự để tìm kiếm</p>';
+        } else {
+            await customAlert("Không thể gửi lời mời. Vui lòng thử lại.");
+        }
+    } catch (err) {
+        console.error(err);
+        await customAlert("Lỗi khi gửi lời mời.");
+    }
 };
 
 window.blockUser = async (id) => {
@@ -162,11 +252,17 @@ async function initializeChat() {
 
 async function fetchUsers() {
     try {
-        const res = await fetch(`${API_BASE}/Auth/users`);
-        const users = await res.json();
+        const res = await fetch(`/api/Friends`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const friends = await res.json();
         
-        // Filter out current user
-        usersList = users.filter(u => u.id !== currentUser.id);
+        // Map FriendDto to user object format expected by UI
+        usersList = friends.map(f => ({
+            id: f.userId,
+            userName: f.userName,
+            isOnline: f.isOnline
+        }));
         
         // Fetch groups
         try {
@@ -243,7 +339,6 @@ async function selectUser(user) {
     
     const disbandBtn = document.getElementById('disband-btn');
     const viewCodeBtn = document.getElementById('view-code-btn');
-    const pendingReqBtn = document.getElementById('pending-requests-btn');
     const membersBtn = document.getElementById('members-btn');
     const leaveBtn = document.getElementById('leave-group-btn');
     const renameBtn = document.getElementById('rename-group-btn');
@@ -255,21 +350,17 @@ async function selectUser(user) {
         if (user.isAdmin) {
             disbandBtn.style.display = 'inline-block';
             disbandBtn.onclick = () => disbandGroup(user.id);
-            pendingReqBtn.style.display = 'inline-block';
-            pendingReqBtn.onclick = () => openPendingRequestsModal();
             renameBtn.style.display = 'inline-block';
             renameBtn.onclick = () => openRenameModal(user.id, user.userName);
             leaveBtn.style.display = 'none';
         } else {
             disbandBtn.style.display = 'none';
-            pendingReqBtn.style.display = 'none';
             renameBtn.style.display = 'none';
             leaveBtn.style.display = 'inline-block';
             leaveBtn.onclick = () => leaveGroup(user.id);
         }
     } else {
         disbandBtn.style.display = 'none';
-        pendingReqBtn.style.display = 'none';
         membersBtn.style.display = 'none';
         leaveBtn.style.display = 'none';
         renameBtn.style.display = 'none';
@@ -339,7 +430,32 @@ async function startSignalR() {
         .withAutomaticReconnect()
         .build();
 
+    hubConnection.on("ReceiveFriendRequest", () => {
+        updatePendingBadge();
+        showToast(`<i class="fa-solid fa-user-plus" style="color: var(--primary);"></i> <b>Có lời mời kết bạn mới!</b>`, '');
+    });
     
+    hubConnection.on("FriendRequestAccepted", (userId) => {
+        fetchUsers();
+        fetchFriends();
+        showToast(`<i class="fa-solid fa-user-check" style="color: #2ecc71;"></i> <b>Lời mời kết bạn đã được chấp nhận!</b>`, '');
+    });
+
+    hubConnection.on("FriendRemoved", (userId) => {
+        fetchUsers();
+        fetchFriends();
+        
+        // Nếu đang mở chat với người này thì đóng phần chat
+        if (activeReceiverId === userId) {
+            activeReceiverId = null;
+            activeConvId = null;
+            document.getElementById('active-chat-name').textContent = 'Vui lòng chọn một cuộc trò chuyện';
+            document.getElementById('messages-container').innerHTML = '<div class="message system"><span>Cuộc trò chuyện đã đóng do không còn là bạn bè</span></div>';
+            document.getElementById('chat-actions-bar').style.display = 'none';
+            document.getElementById('friend-actions-bar').style.display = 'none';
+        }
+    });
+
     hubConnection.on("MessagePinned", (data) => {
         const banner = document.getElementById('pinned-banner');
         const text = document.getElementById('pinned-text');
@@ -1059,15 +1175,18 @@ async function openPendingRequestsModal() {
     modal.classList.add('active');
 
     try {
-        const res = await fetch(`${API_BASE}/Chat/group/requests`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-            const requests = await res.json();
-            if (requests.length === 0) {
-                list.innerHTML = '<p class="empty-requests"><i class="fa-solid fa-check-circle"></i> Không có yêu cầu nào đang chờ.</p>';
-            } else {
-                list.innerHTML = '';
+        const [groupRes, friendRes] = await Promise.all([
+            fetch(`${API_BASE}/Chat/group/requests`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${API_BASE}/Friends/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+        
+        list.innerHTML = '';
+        let hasRequests = false;
+        
+        if (groupRes.ok) {
+            const requests = await groupRes.json();
+            if (requests.length > 0) {
+                hasRequests = true;
                 requests.forEach(req => {
                     const item = document.createElement('div');
                     item.className = 'pending-request-item';
@@ -1089,6 +1208,35 @@ async function openPendingRequestsModal() {
                 });
             }
         }
+        
+        if (friendRes.ok) {
+            const friendReqs = await friendRes.json();
+            if (friendReqs.length > 0) {
+                hasRequests = true;
+                friendReqs.forEach(req => {
+                    const item = document.createElement('div');
+                    item.className = 'pending-request-item';
+                    item.innerHTML = `
+                        <div class="pending-request-info">
+                            <div class="avatar small"><i class="fa-solid fa-user"></i></div>
+                            <div>
+                                <span class="pending-request-name">${escapeHtml(req.userName)}</span>
+                                <span class="pending-request-group">muốn kết bạn với bạn</span>
+                            </div>
+                        </div>
+                        <div class="pending-request-actions">
+                            <button class="btn-approve" onclick="acceptFriend('${req.userId}', this)" title="Chấp nhận"><i class="fa-solid fa-check"></i></button>
+                            <button class="btn-reject" onclick="rejectFriend('${req.userId}', this)" title="Từ chối"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            }
+        }
+        
+        if (!hasRequests) {
+            list.innerHTML = '<p class="empty-requests"><i class="fa-solid fa-check-circle"></i> Không có yêu cầu nào đang chờ.</p>';
+        }
     } catch (e) {
         list.innerHTML = '<p style="text-align: center; color: var(--danger);">Lỗi tải danh sách yêu cầu.</p>';
         console.error(e);
@@ -1097,23 +1245,79 @@ async function openPendingRequestsModal() {
 
 async function updatePendingBadge() {
     try {
-        const res = await fetch(`${API_BASE}/Chat/group/requests`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-            const requests = await res.json();
-            const badge = document.getElementById('pending-badge');
-            if (requests.length > 0) {
-                badge.textContent = requests.length;
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
-            }
+        const [groupRes, friendRes] = await Promise.all([
+            fetch(`${API_BASE}/Chat/group/requests`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${API_BASE}/Friends/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+        
+        let totalCount = 0;
+        
+        if (groupRes.ok) {
+            const requests = await groupRes.json();
+            totalCount += requests.length;
+        }
+        
+        if (friendRes.ok) {
+            const friendReqs = await friendRes.json();
+            totalCount += friendReqs.length;
+        }
+        
+        const badge = document.getElementById('pending-badge');
+        if (totalCount > 0) {
+            badge.textContent = totalCount;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
         }
     } catch (e) {
         console.error(e);
     }
 }
+
+window.acceptFriend = async (friendId, btn) => {
+    btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE}/Friends/accept/${friendId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+        if (res.ok) {
+            btn.parentElement.parentElement.remove();
+            updatePendingBadge();
+            fetchUsers();
+            fetchFriends();
+            showToast('<i class="fa-solid fa-check" style="color: #2ecc71;"></i> <b>Đã chấp nhận kết bạn!</b>', '');
+            
+            // Check if list is empty or close modal as requested
+            const list = document.getElementById('pending-requests-list');
+            if (list.children.length === 0) {
+                list.innerHTML = '<p class="empty-requests"><i class="fa-solid fa-check-circle"></i> Không có yêu cầu nào đang chờ.</p>';
+            }
+            document.getElementById('pending-requests-modal').classList.remove('active');
+        } else {
+            await customAlert("Không thể chấp nhận yêu cầu.");
+            btn.disabled = false;
+        }
+    } catch(e) { console.error(e); btn.disabled = false; }
+};
+
+window.rejectFriend = async (friendId, btn) => {
+    btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE}/Friends/reject/${friendId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+        if (res.ok) {
+            btn.parentElement.parentElement.remove();
+            updatePendingBadge();
+            showToast('<i class="fa-solid fa-xmark" style="color: #e74c3c;"></i> <b>Đã từ chối kết bạn!</b>', '');
+            
+            const list = document.getElementById('pending-requests-list');
+            if (list.children.length === 0) {
+                list.innerHTML = '<p class="empty-requests"><i class="fa-solid fa-check-circle"></i> Không có yêu cầu nào đang chờ.</p>';
+                document.getElementById('pending-requests-modal').classList.remove('active');
+            }
+        } else {
+            await customAlert("Không thể từ chối yêu cầu.");
+            btn.disabled = false;
+        }
+    } catch(e) { console.error(e); btn.disabled = false; }
+};
 
 async function disbandGroup(conversationId) {
     if (!await customConfirm("Bạn có chắc chắn muốn giải tán nhóm này? Hành động này không thể hoàn tác.")) return;
@@ -1174,37 +1378,11 @@ document.getElementById('save-profile-btn')?.addEventListener('click', async () 
             currentUser.userName = user.userName;
             currentUser.email = user.email;
             currentUsernameSpan.textContent = user.userName;
+            document.getElementById('settings-modal').classList.remove('active');
             showToast('<i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Cập nhật hồ sơ thành công!', '');
         } else {
             const err = await res.text();
             await customAlert(err || 'Không thể cập nhật.');
-        }
-    } catch (e) { console.error(e); }
-});
-
-document.getElementById('save-password-btn')?.addEventListener('click', async () => {
-    const currentPassword = document.getElementById('current-password').value;
-    const newPassword = document.getElementById('new-password').value;
-    const confirmPassword = document.getElementById('confirm-password').value;
-    
-    if (!currentPassword || !newPassword) { await customAlert('Vui lòng nhập đầy đủ.'); return; }
-    if (newPassword !== confirmPassword) return await customAlert('Mật khẩu mới không khớp!');
-    if (newPassword.length < 6) { await customAlert('Mật khẩu mới tối thiểu 6 ký tự.'); return; }
-    
-    try {
-        const res = await fetch(`${API_BASE}/Auth/password`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ currentPassword, newPassword })
-        });
-        if (res.ok) {
-            document.getElementById('current-password').value = '';
-            document.getElementById('new-password').value = '';
-            document.getElementById('confirm-password').value = '';
-            showToast('<i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Đổi mật khẩu thành công!', '');
-        } else {
-            const err = await res.text();
-            await customAlert(err || 'Không thể đổi mật khẩu.');
         }
     } catch (e) { console.error(e); }
 });
@@ -1244,12 +1422,10 @@ function openSettingsTab(tab) {
         document.getElementById('setting-username').value = currentUser.userName;
         document.getElementById('setting-email').value = currentUser.email;
         sections[0].style.display = 'block';
-    } else if (tab === 'password' && sections[1]) {
-        title.innerHTML = '<i class="fa-solid fa-lock" style="color: var(--primary); margin-right: 8px;"></i>Đổi mật khẩu';
-        sections[1].style.display = 'block';
-    } else if (tab === 'blocked' && sections[2]) {
+    } else if (tab === 'blocked' && sections[1]) {
         title.innerHTML = '<i class="fa-solid fa-ban" style="color: var(--primary); margin-right: 8px;"></i>Danh sách chặn';
-        sections[2].style.display = 'block';
+        sections[1].style.display = 'block';
+        fetchBlockedUsers();
     }
 }
 
@@ -1323,3 +1499,8 @@ document.getElementById('unpin-btn')?.addEventListener('click', async () => {
     if(!await customConfirm('Bỏ ghim tin nhắn?')) return;
     await hubConnection.invoke('UnpinMessage', pinnedMessageId);
 });
+
+const globalPendingBtn = document.getElementById('pending-requests-btn');
+if (globalPendingBtn) {
+    globalPendingBtn.addEventListener('click', openPendingRequestsModal);
+}

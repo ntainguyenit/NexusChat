@@ -463,13 +463,13 @@ public class ChatService : IChatService
 
     // --- Friends Management ---
 
-    public async Task<bool> SendFriendRequestAsync(Guid userId, string friendUserName)
+    public async Task<(bool, Guid?)> SendFriendRequestAsync(Guid userId, string friendEmail)
     {
-        var friend = await _unitOfWork.Users.GetByUserNameAsync(friendUserName);
-        if (friend == null || friend.Id == userId) return false;
+        var friend = await _unitOfWork.Users.GetByEmailAsync(friendEmail);
+        if (friend == null || friend.Id == userId) return (false, null);
 
         var existing = await _unitOfWork.Friendships.GetAsync(userId, friend.Id);
-        if (existing != null) return false;
+        if (existing != null) return (false, null);
 
         await _unitOfWork.Friendships.AddAsync(new Friendship
         {
@@ -478,7 +478,7 @@ public class ChatService : IChatService
             IsAccepted = false
         });
         await _unitOfWork.SaveChangesAsync();
-        return true;
+        return (true, friend.Id);
     }
 
     public async Task<bool> AcceptFriendRequestAsync(Guid userId, Guid friendId)
