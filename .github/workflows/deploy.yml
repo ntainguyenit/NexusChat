@@ -1,4 +1,4 @@
-name: Deploy to Oracle VM
+name: CI Build and Test
 
 on:
   push:
@@ -24,19 +24,3 @@ jobs:
       
     - name: Test
       run: dotnet test --no-build --verbosity normal
-
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Deploy to Oracle VM
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.HOST_IP }}
-        username: ${{ secrets.HOST_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd ~/NexusChat
-          git pull origin main
-          docker-compose up -d --build
