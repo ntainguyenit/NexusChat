@@ -49,8 +49,15 @@ async function handleCredentialResponse(response) {
         token = data.token;
         currentUser = data.user;
         
+        // Save to localStorage
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+
         // Setup UI
         currentUsernameSpan.textContent = currentUser.userName;
+        const bioSpan = document.getElementById('current-user-bio');
+        if (bioSpan) bioSpan.textContent = currentUser.bio || 'Chưa có tiểu sử';
+        
         loginView.classList.remove('active');
         chatView.style.display = 'flex';
         
@@ -67,6 +74,8 @@ logoutBtn.addEventListener('click', async () => {
     }
     token = null;
     currentUser = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     chatView.style.display = 'none';
     loginView.classList.add('active');
     messagesContainer.innerHTML = '';
@@ -1531,3 +1540,30 @@ const globalPendingBtn = document.getElementById('pending-requests-btn');
 if (globalPendingBtn) {
     globalPendingBtn.addEventListener('click', openPendingRequestsModal);
 }
+
+// Auto Login from localStorage
+window.addEventListener('DOMContentLoaded', async () => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (savedToken && savedUser) {
+        try {
+            token = savedToken;
+            currentUser = JSON.parse(savedUser);
+            
+            // Setup UI
+            currentUsernameSpan.textContent = currentUser.userName;
+            const bioSpan = document.getElementById('current-user-bio');
+            if (bioSpan) bioSpan.textContent = currentUser.bio || 'Chưa có tiểu sử';
+            
+            loginView.classList.remove('active');
+            chatView.style.display = 'flex';
+            
+            await initializeChat();
+        } catch (e) {
+            console.error('Error restoring session:', e);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+        }
+    }
+});

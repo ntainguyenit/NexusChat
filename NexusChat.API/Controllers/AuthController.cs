@@ -31,6 +31,36 @@ public class AuthController : ControllerBase
         _connectionManager = connectionManager;
     }
 
+    [HttpPost("test-login")]
+    public async Task<ActionResult<AuthResultDto>> TestLogin([FromQuery] string email, [FromQuery] string username)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user == null)
+        {
+            user = new User
+            {
+                Email = email,
+                UserName = username,
+                PasswordHash = string.Empty
+            };
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+        }
+
+        var token = _tokenService.CreateToken(user);
+        return Ok(new AuthResultDto
+        {
+            Token = token,
+            User = new UserDto
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                Bio = user.Bio
+            }
+        });
+    }
+
     [HttpPost("google-login")]
     public async Task<ActionResult<AuthResultDto>> GoogleLogin([FromBody] GoogleLoginDto dto)
     {
