@@ -1038,8 +1038,14 @@ function openCreateGroupModal() {
     document.getElementById('group-modal').classList.add('active');
 }
 
+let groupModalAutoCloseTimer = null;
+
 function closeGroupModal() {
     document.getElementById('group-modal').classList.remove('active');
+    if (groupModalAutoCloseTimer) {
+        clearInterval(groupModalAutoCloseTimer);
+        groupModalAutoCloseTimer = null;
+    }
 }
 
 document.getElementById('copy-code-btn').addEventListener('click', () => {
@@ -1097,6 +1103,25 @@ document.getElementById('create-group-btn').addEventListener('click', async () =
             document.getElementById('group-modal-title').textContent = 'Group Created!';
             document.getElementById('new-group-code').textContent = group.joinCode;
             document.getElementById('group-code-display').style.display = 'block';
+            
+            // Tự động đếm ngược
+            let countdown = 15;
+            const autoCloseBtn = document.getElementById('auto-close-btn');
+            if (autoCloseBtn) {
+                autoCloseBtn.textContent = `Tự động đóng sau ${countdown} giây`;
+                if (groupModalAutoCloseTimer) clearInterval(groupModalAutoCloseTimer);
+                
+                groupModalAutoCloseTimer = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        autoCloseBtn.textContent = `Tự động đóng sau ${countdown} giây`;
+                    } else {
+                        clearInterval(groupModalAutoCloseTimer);
+                        groupModalAutoCloseTimer = null;
+                        closeGroupModal();
+                    }
+                }, 1000);
+            }
             
             await fetchUsers(); // Refresh sidebar to show new group
         } else {
