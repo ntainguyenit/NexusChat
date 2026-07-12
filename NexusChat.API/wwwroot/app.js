@@ -501,8 +501,15 @@ async function startSignalR() {
                 }
             }
         } else if (!isFromActive && !isFromMe) {
-            console.log(`New message from ${message.senderName}`);
+            showToast(`<i class="fa-solid fa-message" style="color: var(--primary);"></i> <b>${escapeHtml(message.senderName)}</b>: ${escapeHtml(message.content)}`);
         }
+        
+        // Luôn luôn cập nhật danh sách hội thoại để hiện tin nhắn mới nhất và badge
+        fetchUsers();
+    });
+    
+    hubConnection.on("ReceiveMention", (senderName, groupName) => {
+        showToast(`<i class="fa-solid fa-at" style="color: #f39c12;"></i> Bạn được nhắc đến bởi <b>${escapeHtml(senderName)}</b> trong nhóm <b>${escapeHtml(groupName)}</b>`);
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -521,22 +528,33 @@ async function startSignalR() {
     });
 
     let typingTimeout;
-    hubConnection.on("UserTyping", (userId, isGroup) => {
-        const isMatch = (!isGroup && userId.toLowerCase() === activeReceiverId?.toLowerCase()) || isGroup;
+    hubConnection.on("UserTyping", (userId, userName, isGroup) => {
+        // Cú pháp C# trả về: UserTyping(userIdStr, userName, isGroup) cho nhóm, 
+        // riêng private có thể bị thiếu userName, nên ta linh động
+        if (typeof isGroup === 'undefined') {
+            isGroup = userName; // Trương hợp Private cũ
+            userName = '';
+        }
+        
+        const isMatch = (!isGroup && userId.toLowerCase() === activeReceiverId?.toLowerCase()) || (isGroup && activeIsGroup);
         if (isMatch) {
-            const user = usersList.find(u => u.id.toLowerCase() === userId.toLowerCase());
-            typingDiv.textContent = `${user ? user.userName : 'Ai đó'} is typing...`;
+            let nameToDisplay = userName;
+            if (!nameToDisplay) {
+                const user = usersList.find(u => u.id.toLowerCase() === userId.toLowerCase());
+                nameToDisplay = user ? user.userName : 'Ai đó';
+            }
+            typingDiv.innerHTML = `<span><i class="fa-solid fa-pen"></i> <b>${escapeHtml(nameToDisplay)}</b> đang gõ...</span>`;
             typingDiv.classList.add('active');
             
             clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => {
                 typingDiv.classList.remove('active');
-            }, 3000);
+            }, 5000);
         }
     });
 
     hubConnection.on("UserStoppedTyping", (userId, isGroup) => {
-        const isMatch = (!isGroup && userId.toLowerCase() === activeReceiverId?.toLowerCase()) || isGroup;
+        const isMatch = (!isGroup && userId.toLowerCase() === activeReceiverId?.toLowerCase()) || (isGroup && activeIsGroup);
         if (isMatch) {
             typingDiv.classList.remove('active');
         }
@@ -732,7 +750,11 @@ function appendMessage(text, isSent, timeStr, msgId = null, isRead = false, isEd
                 <div class="quote-text">${escapeHtml(quote.content)}</div>
             </div>`;
         }
-        contentHtml += escapeHtml(text) + (isEdited ? ' <span class="edited-tag">(đã chỉnh sửa)</span>' : '');
+        let parsedText = escapeHtml(text);
+        // Highlight mention @username
+        parsedText = parsedText.replace(/@(\w+)/g, '<span class="mention" style="color: var(--primary); font-weight: bold; background: rgba(52, 152, 219, 0.1); padding: 2px 4px; border-radius: 4px;">@$1</span>');
+        
+        contentHtml += parsedText + (isEdited ? ' <span class="edited-tag">(đã chỉnh sửa)</span>' : '');
     }
 
     // Context menu button
@@ -1365,19 +1387,24 @@ messageSearchInput.addEventListener('input', (e) => {
 document.getElementById('save-profile-btn')?.addEventListener('click', async () => {
     const userName = document.getElementById('setting-username').value.trim();
     const email = document.getElementById('setting-email').value.trim();
+    const bio = document.getElementById('setting-bio').value.trim();
     if (!userName || !email) { await customAlert('Vui lòng nhập đầy đủ thông tin.'); return; }
     
     try {
         const res = await fetch(`${API_BASE}/Auth/profile`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ userName, email })
+            body: JSON.stringify({ userName, email, bio })
         });
         if (res.ok) {
             const user = await res.json();
             currentUser.userName = user.userName;
             currentUser.email = user.email;
+            currentUser.bio = user.bio;
             currentUsernameSpan.textContent = user.userName;
+            const bioSpan = document.getElementById('current-user-bio');
+            if (bioSpan) bioSpan.textContent = user.bio || 'Chưa có tiểu sử';
+            
             document.getElementById('settings-modal').classList.remove('active');
             showToast('<i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Cập nhật hồ sơ thành công!', '');
         } else {

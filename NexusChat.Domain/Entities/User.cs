@@ -6,6 +6,7 @@ public class User : BaseEntity
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public DateTime? LastActiveAt { get; set; }
+    public string? Bio { get; set; }
 
     // Navigation properties
     public ICollection<ConversationParticipant> ConversationParticipants { get; set; } = new List<ConversationParticipant>();

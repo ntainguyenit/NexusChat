@@ -27,10 +27,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: nexuschat_api
-    ports:
-      - "5215:8080"
+    expose:
+      - "8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NexusChat;User Id=sa;Password=Your_password123;TrustServerCertificate=True
       - ConnectionStrings__Redis=redis:6379
     depends_on:
@@ -38,6 +38,22 @@ services:
       - redis
     restart: unless-stopped
 
+  caddy:
+    image: caddy:alpine
+    container_name: nexuschat_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
 volumes:
   sqlserver_data:
   redis_data:
+  caddy_data:
+  caddy_config:

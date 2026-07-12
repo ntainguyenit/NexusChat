@@ -68,9 +68,12 @@
                 </ul>
                 <div class="sidebar-footer" style="flex-direction: column; align-items: flex-start; gap: 10px;">
                     <div class="current-user" style="cursor: default; width: 100%; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; width: 100%; overflow: hidden;">
                             <div class="avatar small"><i class="fa-solid fa-user"></i></div>
-                            <span id="current-username">Người dùng</span>
+                            <div style="display: flex; flex-direction: column; overflow: hidden; max-width: calc(100% - 40px);">
+                                <span id="current-username" style="font-weight: 500;">Người dùng</span>
+                                <span id="current-user-bio" style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;" title="Nhấn để đổi tiểu sử" onclick="openSettingsTab('profile'); event.stopPropagation();">Chưa có tiểu sử</span>
+                            </div>
                         </div>
                         <button class="icon-btn" title="Thông báo" id="pending-requests-btn" style="position: relative; padding: 5px;"><i class="fa-solid fa-bell"></i> <span id="pending-badge" class="pending-badge" style="display: none; top: -5px; right: -5px;">0</span></button>
                     </div>
@@ -188,6 +191,10 @@
                 <div class="form-group">
                     <label for="setting-email">Gmail</label>
                     <input type="email" id="setting-email" placeholder="Email" readonly style="background-color: var(--bg-sidebar); cursor: not-allowed; color: var(--text-muted);" title="Email liên kết với Google không thể thay đổi">
+                </div>
+                <div class="form-group">
+                    <label for="setting-bio">Tiểu sử</label>
+                    <input type="text" id="setting-bio" placeholder="Thêm tiểu sử ngắn gọn (tối đa 150 ký tự)" maxlength="150">
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 1rem;">
                     <button class="btn-primary small" id="save-profile-btn"><i class="fa-solid fa-floppy-disk"></i> Lưu hồ sơ</button>

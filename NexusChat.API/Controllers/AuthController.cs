@@ -77,7 +77,8 @@ public class AuthController : ControllerBase
                 {
                     Id = user.Id,
                     UserName = user.UserName,
-                    Email = user.Email
+                    Email = user.Email,
+                    Bio = user.Bio
                 }
             });
         }
@@ -95,7 +96,8 @@ public class AuthController : ControllerBase
             {
                 Id = u.Id,
                 UserName = u.UserName,
-                Email = u.Email
+                Email = u.Email,
+                Bio = u.Bio
             }).ToListAsync();
             
         foreach(var u in users)
@@ -127,7 +129,8 @@ public class AuthController : ControllerBase
             {
                 Id = u.Id,
                 UserName = u.UserName,
-                Email = u.Email
+                Email = u.Email,
+                Bio = u.Bio
             }).ToListAsync();
             
         return Ok(users);
@@ -149,8 +152,10 @@ public class AuthController : ControllerBase
             return BadRequest("Username is already taken");
 
         user.UserName = dto.UserName;
-        // Do NOT allow updating Email since it's linked to Google Account
-        // user.Email = dto.Email; 
+        if (dto.Bio != null && dto.Bio.Length <= 150)
+        {
+            user.Bio = dto.Bio;
+        }
         
         await _context.SaveChangesAsync();
 
@@ -158,7 +163,34 @@ public class AuthController : ControllerBase
         {
             Id = user.Id,
             UserName = user.UserName,
-            Email = user.Email // Return the original email
+            Email = user.Email, // Return the original email
+            Bio = user.Bio
+        });
+    }
+
+    [Authorize]
+    [HttpPut("bio")]
+    public async Task<ActionResult<UserDto>> UpdateBio([FromBody] UpdateBioDto dto)
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return Unauthorized();
+
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return NotFound();
+
+        if (dto.Bio != null && dto.Bio.Length > 150)
+            return BadRequest("Tiểu sử không được vượt quá 150 ký tự");
+
+        user.Bio = dto.Bio;
+        await _context.SaveChangesAsync();
+
+        return Ok(new UserDto
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            Email = user.Email,
+            Bio = user.Bio
         });
     }
 

@@ -70,6 +70,7 @@ public class ChatHub : Hub
     public async Task<MessageDto?> SendMessageToGroup(Guid conversationId, string content, Guid? parentMessageId = null)
     {
         var senderIdStr = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var senderName = Context.User?.Identity?.Name ?? "Một người bạn";
         if (string.IsNullOrEmpty(senderIdStr) || !Guid.TryParse(senderIdStr, out var senderId))
             return null;
 
@@ -80,8 +81,32 @@ public class ChatHub : Hub
         // Save message to DB
         var messageDto = await _chatService.SendMessageAsync(senderId, conversationId, content, parentMessageId);
 
-        // Broadcast to group (except sender to avoid duplicate if we rely on return value, but here we just return it)
+        // Broadcast to group
         await Clients.GroupExcept(conversationId.ToString(), Context.ConnectionId).SendAsync("ReceiveMessage", messageDto);
+        
+        // Handle mentions
+        var mentionRegex = new System.Text.RegularExpressions.Regex(@"@(\w+)");
+        var matches = mentionRegex.Matches(content);
+        if (matches.Count > 0)
+        {
+            var mentionedUserNames = matches.Select(m => m.Groups[1].Value.ToLower()).ToHashSet();
+            var members = await _chatService.GetGroupMembersAsync(conversationId, senderId);
+            
+            // Lấy tên nhóm tạm thời (trong thực tế có thể lấy từ Conversation)
+            var groupName = "nhóm chat"; 
+            
+            foreach (var member in members)
+            {
+                if (member.UserId != senderId && mentionedUserNames.Contains(member.UserName.ToLower()))
+                {
+                    var memberConnections = _connectionManager.GetUserConnections(member.UserId.ToString());
+                    if (memberConnections.Any())
+                    {
+                        await Clients.Clients(memberConnections).SendAsync("ReceiveMention", senderName, groupName);
+                    }
+                }
+            }
+        }
         
         return messageDto;
     }

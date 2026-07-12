@@ -1,0 +1,42 @@
+name: Deploy to Oracle VM
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --no-restore
+      
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to Oracle VM
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOST_IP }}
+        username: ${{ secrets.HOST_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~/NexusChat
+          git pull origin main
+          docker-compose up -d --build
